@@ -26,6 +26,7 @@ export type Database = {
           invite_code?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       profiles: {
         Row: {
@@ -46,6 +47,7 @@ export type Database = {
           display_name?: string;
           created_at?: string;
         };
+        Relationships: [];
       };
       categories: {
         Row: {
@@ -72,6 +74,7 @@ export type Database = {
           is_default?: boolean;
           family_id?: string | null;
         };
+        Relationships: [];
       };
       products: {
         Row: {
@@ -95,6 +98,7 @@ export type Database = {
           family_id?: string | null;
           usage_count?: number;
         };
+        Relationships: [];
       };
       shopping_items: {
         Row: {
@@ -130,10 +134,12 @@ export type Database = {
           created_at?: string;
           checked_at?: string | null;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
     Enums: Record<string, never>;
+    CompositeTypes: Record<string, never>;
   };
 };

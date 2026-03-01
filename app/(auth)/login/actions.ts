@@ -42,7 +42,7 @@ export async function signIn(
       .from('profiles')
       .select('family_id')
       .eq('id', user.id)
-      .single<{ family_id: string | null }>();
+      .single();
 
     if (profile?.family_id) {
       redirect('/');
