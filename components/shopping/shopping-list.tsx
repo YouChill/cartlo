@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { CategoryHeader } from './category-header';
 import { CategoryFilters } from './category-filters';
+import { CheckedSection } from './checked-section';
 import { ShoppingItem } from './shopping-item';
 
 type ShoppingItemData = {
@@ -42,11 +43,17 @@ export function ShoppingList({
     'all',
   );
 
-  // Filter only unchecked items
+  // Separate active and checked items
   const activeItems = items.filter((item) => !item.is_checked);
+  const checkedItems = items.filter((item) => item.is_checked);
 
   if (activeItems.length === 0) {
-    return <EmptyState />;
+    return (
+      <div className="pb-4">
+        <EmptyState />
+        <CheckedSection items={checkedItems} memberNames={memberNames} />
+      </div>
+    );
   }
 
   // Group all active items by category (for filter chip counts)
@@ -124,6 +131,8 @@ export function ShoppingList({
           );
         })
       )}
+
+      <CheckedSection items={checkedItems} memberNames={memberNames} />
     </div>
   );
 }
