@@ -43,22 +43,22 @@ fi
 # =============================================================================
 echo -e "${YELLOW}Tworzenie labels...${NC}"
 
-declare -A LABELS=(
-    ["setup"]="d4c5f9:Konfiguracja projektu i tooling"
-    ["database"]="0075ca:Schemat bazy danych, migracje, RLS"
-    ["auth"]="e4e669:Autentykacja i autoryzacja"
-    ["feature"]="a2eeef:Nowa funkcjonalnosc"
-    ["ui"]="7057ff:Komponent UI / design"
-    ["realtime"]="008672:Synchronizacja realtime"
-    ["pwa"]="d93f0b:Progressive Web App"
-    ["ux"]="fbca04:UX improvements, animacje"
-    ["priority:high"]="b60205:Wysoki priorytet"
-    ["priority:medium"]="f9d0c4:Sredni priorytet"
-    ["priority:low"]="c5def5:Niski priorytet"
+LABEL_ENTRIES=(
+    "setup|d4c5f9|Konfiguracja projektu i tooling"
+    "database|0075ca|Schemat bazy danych, migracje, RLS"
+    "auth|e4e669|Autentykacja i autoryzacja"
+    "feature|a2eeef|Nowa funkcjonalnosc"
+    "ui|7057ff|Komponent UI / design"
+    "realtime|008672|Synchronizacja realtime"
+    "pwa|d93f0b|Progressive Web App"
+    "ux|fbca04|UX improvements, animacje"
+    "priority:high|b60205|Wysoki priorytet"
+    "priority:medium|f9d0c4|Sredni priorytet"
+    "priority:low|c5def5|Niski priorytet"
 )
 
-for label in "${!LABELS[@]}"; do
-    IFS=':' read -r color description <<< "${LABELS[$label]}"
+for entry in "${LABEL_ENTRIES[@]}"; do
+    IFS='|' read -r label color description <<< "$entry"
     gh label create "$label" --color "$color" --description "$description" --force 2>/dev/null || true
     echo -e "  ${GREEN}+${NC} $label"
 done
@@ -87,15 +87,14 @@ echo -e "  ${GREEN}+${NC} M5: Polish & PWA"
 
 echo ""
 
-# Pobierz numery milestones
-echo -e "${YELLOW}Pobieranie numerow milestones...${NC}"
-M1=$(gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title=="M1: Project Setup") | .number')
-M2=$(gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title=="M2: Auth & Family") | .number')
-M3=$(gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title=="M3: Shopping List Core") | .number')
-M4=$(gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title=="M4: Smart Features") | .number')
-M5=$(gh api repos/{owner}/{repo}/milestones --jq '.[] | select(.title=="M5: Polish & PWA") | .number')
+# Nazwy milestones (gh issue create przyjmuje nazwy, nie numery)
+M1="M1: Project Setup"
+M2="M2: Auth & Family"
+M3="M3: Shopping List Core"
+M4="M4: Smart Features"
+M5="M5: Polish & PWA"
 
-echo -e "  M1=$M1, M2=$M2, M3=$M3, M4=$M4, M5=$M5"
+echo -e "  Milestones: $M1, $M2, $M3, $M4, $M5"
 echo ""
 
 # =============================================================================
