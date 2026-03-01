@@ -1,5 +1,178 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+
+@custom-variant dark (&:is(.dark *));
+
+/* =============================================================================
+   Cartlo Design Tokens + shadcn/ui theme
+   Ref: DESIGN_SYSTEM.md
+   ============================================================================= */
 
 @theme inline {
+  /* Font */
   --font-sans: var(--font-nunito);
+
+  /* shadcn radius system */
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+
+  /* shadcn color bindings */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Sidebar (shadcn) */
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Charts */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  /* =========================================================================
+     Cartlo custom design tokens
+     ========================================================================= */
+
+  /* Surface colors */
+  --color-surface: #ffffff;
+  --color-surface-raised: #f5f5f3;
+
+  /* Custom border tokens */
+  --color-border-light: #f0f0ec;
+
+  /* Text semantic colors */
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-tertiary: #9b9b9b;
+  --color-text-disabled: #c4c4c4;
+
+  /* Mint accent scale */
+  --color-mint-50: #f0fdf6;
+  --color-mint-100: #dcfce8;
+  --color-mint-200: #bbf7d0;
+  --color-mint-300: #86efac;
+  --color-mint-400: #4ade80;
+  --color-mint-500: #22c55e;
+  --color-mint-600: #16a34a;
+
+  /* Status colors */
+  --color-warning-bg: #fef3c7;
+  --color-warning-text: #d97706;
+  --color-warning-border: #fcd34d;
+  --color-error-bg: #fee2e2;
+  --color-error-text: #dc2626;
+  --color-info-bg: #e0f2fe;
+  --color-info-text: #0284c7;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+/* =============================================================================
+   CSS Custom Properties — shadcn + Cartlo overrides (light mode)
+   ============================================================================= */
+:root {
+  /* Base radius for shadcn calc system */
+  --radius: 0.75rem;
+
+  /* shadcn semantic tokens — mapped to Cartlo design system */
+  --background: #fafaf8;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+
+  /* Primary = mint */
+  --primary: #4ade80;
+  --primary-foreground: #ffffff;
+
+  /* Secondary */
+  --secondary: #f5f5f3;
+  --secondary-foreground: #1a1a1a;
+
+  /* Muted */
+  --muted: #f5f5f3;
+  --muted-foreground: #6b6b6b;
+
+  /* Accent */
+  --accent: #f0fdf6;
+  --accent-foreground: #16a34a;
+
+  /* Destructive */
+  --destructive: #dc2626;
+
+  /* Border / Input / Ring */
+  --border: #e8e8e4;
+  --input: #e8e8e4;
+  --ring: #4ade80;
+
+  /* Charts */
+  --chart-1: #4ade80;
+  --chart-2: #86efac;
+  --chart-3: #22c55e;
+  --chart-4: #bbf7d0;
+  --chart-5: #16a34a;
+
+  /* Sidebar */
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #4ade80;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0fdf6;
+  --sidebar-accent-foreground: #16a34a;
+  --sidebar-border: #e8e8e4;
+  --sidebar-ring: #4ade80;
+
+  /* Cartlo spacing scale */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
