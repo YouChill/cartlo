@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { CategoryHeader } from './category-header';
 import { CategoryFilters } from './category-filters';
+import { AddProductInput } from './add-product-input';
 import { CheckedSection } from './checked-section';
 import { ShoppingItem } from './shopping-item';
 
@@ -50,6 +51,9 @@ export function ShoppingList({
   if (activeItems.length === 0) {
     return (
       <div className="pb-4">
+        <div className="sticky top-0 z-20 bg-[rgba(250,250,248,0.85)] backdrop-blur-[12px]">
+          <AddProductInput />
+        </div>
         <EmptyState />
         <CheckedSection items={checkedItems} memberNames={memberNames} />
       </div>
@@ -82,12 +86,15 @@ export function ShoppingList({
 
   return (
     <div className="pb-4">
-      <CategoryFilters
-        categories={categoryChips}
-        activeFilter={activeFilter}
-        onFilterChange={setActiveFilter}
-        uncategorizedCount={uncategorizedCount}
-      />
+      <div className="sticky top-0 z-20 bg-[rgba(250,250,248,0.85)] backdrop-blur-[12px]">
+        <AddProductInput />
+        <CategoryFilters
+          categories={categoryChips}
+          activeFilter={activeFilter}
+          onFilterChange={setActiveFilter}
+          uncategorizedCount={uncategorizedCount}
+        />
+      </div>
 
       {filteredGroups.length === 0 ? (
         <div className="px-4 py-8 text-center text-sm text-text-tertiary">

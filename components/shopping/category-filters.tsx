@@ -22,7 +22,7 @@ export function CategoryFilters({
   const totalCount = categories.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
 
   return (
-    <div className="sticky top-0 z-10 bg-background/80 px-4 pb-3 pt-2 backdrop-blur-[12px]">
+    <div className="px-4 pb-3 pt-2">
       <div className="no-scrollbar flex gap-2 overflow-x-auto">
         {/* "Wszystko" chip */}
         <FilterChip

@@ -34,6 +34,87 @@ export async function toggleShoppingItem(
   return { success: true };
 }
 
+export async function addProduct(
+  productName: string,
+): Promise<{ success: boolean; error?: string }> {
+  const trimmed = productName.trim();
+  if (!trimmed) {
+    return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
+  }
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: 'Nie jestes zalogowany' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('family_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.family_id) {
+    return { success: false, error: 'Nie nalezysz do rodziny' };
+  }
+
+  // Check for duplicates on active list
+  const { data: existing } = await supabase
+    .from('shopping_items')
+    .select('id')
+    .eq('family_id', profile.family_id)
+    .eq('is_checked', false)
+    .ilike('product_name', trimmed)
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return { success: false, error: 'Ten produkt juz jest na liscie' };
+  }
+
+  // Look up product in products table for auto-categorization
+  let categoryId: string | null = null;
+
+  const { data: knownProduct } = await supabase
+    .from('products')
+    .select('id, category_id')
+    .ilike('name', trimmed)
+    .or(`family_id.is.null,family_id.eq.${profile.family_id}`)
+    .limit(1)
+    .single();
+
+  if (knownProduct) {
+    categoryId = knownProduct.category_id;
+    // usage_count increment will be handled in issue #34
+  } else {
+    // Add as new product (uncategorized)
+    await supabase.from('products').insert({
+      name: trimmed,
+      category_id: null,
+      family_id: profile.family_id,
+      usage_count: 1,
+    });
+  }
+
+  // Insert shopping item
+  const { error } = await supabase.from('shopping_items').insert({
+    family_id: profile.family_id,
+    product_name: trimmed,
+    category_id: categoryId,
+    added_by: user.id,
+  });
+
+  if (error) {
+    return { success: false, error: 'Nie udalo sie dodac produktu' };
+  }
+
+  revalidatePath('/');
+  return { success: true };
+}
+
 export async function clearCheckedItems(): Promise<{
   success: boolean;
   error?: string;
