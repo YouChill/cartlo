@@ -22,7 +22,9 @@ export default async function ListPage() {
   // Fetch shopping items for the family
   const { data: items, error: itemsError } = await supabase
     .from('shopping_items')
-    .select('id, product_name, category_id, is_checked, added_by, created_at')
+    .select(
+      'id, product_name, category_id, is_checked, added_by, checked_by, checked_at, created_at',
+    )
     .eq('family_id', profile.family_id)
     .order('created_at', { ascending: true });
 
@@ -32,6 +34,12 @@ export default async function ListPage() {
     .select('id, name, icon, sort_order')
     .or(`family_id.is.null,family_id.eq.${profile.family_id}`)
     .order('sort_order', { ascending: true });
+
+  // Fetch family member names for meta info
+  const { data: members } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .eq('family_id', profile.family_id);
 
   if (itemsError) {
     return (
@@ -43,5 +51,17 @@ export default async function ListPage() {
     );
   }
 
-  return <ShoppingList items={items ?? []} categories={categories ?? []} />;
+  // Build member name lookup
+  const memberNames: Record<string, string> = {};
+  members?.forEach((m) => {
+    memberNames[m.id] = m.display_name;
+  });
+
+  return (
+    <ShoppingList
+      items={items ?? []}
+      categories={categories ?? []}
+      memberNames={memberNames}
+    />
+  );
 }

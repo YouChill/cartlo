@@ -2,13 +2,16 @@
 
 import { ShoppingCart } from 'lucide-react';
 import { CategoryHeader } from './category-header';
+import { ShoppingItem } from './shopping-item';
 
-type ShoppingItem = {
+type ShoppingItemData = {
   id: string;
   product_name: string;
   category_id: string | null;
   is_checked: boolean;
   added_by: string;
+  checked_by: string | null;
+  checked_at: string | null;
   created_at: string;
 };
 
@@ -21,15 +24,17 @@ type Category = {
 
 type GroupedItems = {
   category: Category | null;
-  items: ShoppingItem[];
+  items: ShoppingItemData[];
 };
 
 export function ShoppingList({
   items,
   categories,
+  memberNames,
 }: {
-  items: ShoppingItem[];
+  items: ShoppingItemData[];
   categories: Category[];
+  memberNames: Record<string, string>;
 }) {
   // Filter only unchecked items
   const activeItems = items.filter((item) => !item.is_checked);
@@ -62,22 +67,18 @@ export function ShoppingList({
             />
             <div className="mx-4 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
               {group.items.map((item) => (
-                <div
+                <ShoppingItem
                   key={item.id}
-                  className={`flex min-h-[52px] items-center gap-3 border-b border-border-light px-4 py-3.5 last:border-b-0 ${
-                    isUncategorized
-                      ? 'border-l-[3px] border-l-warning-text'
-                      : ''
-                  }`}
-                >
-                  {/* Checkbox placeholder — will be interactive in issue #12 */}
-                  <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-border" />
-
-                  {/* Product name */}
-                  <span className="flex-1 text-base text-text-primary">
-                    {item.product_name}
-                  </span>
-                </div>
+                  id={item.id}
+                  productName={item.product_name}
+                  isChecked={item.is_checked}
+                  addedBy={item.added_by}
+                  checkedBy={item.checked_by}
+                  checkedAt={item.checked_at}
+                  createdAt={item.created_at}
+                  memberNames={memberNames}
+                  isUncategorized={isUncategorized}
+                />
               ))}
             </div>
           </div>
@@ -102,13 +103,13 @@ function EmptyState() {
 }
 
 function groupByCategory(
-  items: ShoppingItem[],
+  items: ShoppingItemData[],
   categories: Category[],
 ): GroupedItems[] {
   const categoryMap = new Map<string, Category>();
   categories.forEach((cat) => categoryMap.set(cat.id, cat));
 
-  const groups = new Map<string | null, ShoppingItem[]>();
+  const groups = new Map<string | null, ShoppingItemData[]>();
 
   items.forEach((item) => {
     const key = item.category_id;
