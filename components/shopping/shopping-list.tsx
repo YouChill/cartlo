@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { ShoppingCart } from 'lucide-react';
 import { CategoryHeader } from './category-header';
+import { CategoryFilters } from './category-filters';
 import { ShoppingItem } from './shopping-item';
 
 type ShoppingItemData = {
@@ -36,6 +38,10 @@ export function ShoppingList({
   categories: Category[];
   memberNames: Record<string, string>;
 }) {
+  const [activeFilter, setActiveFilter] = useState<string | null | 'all'>(
+    'all',
+  );
+
   // Filter only unchecked items
   const activeItems = items.filter((item) => !item.is_checked);
 
@@ -43,47 +49,81 @@ export function ShoppingList({
     return <EmptyState />;
   }
 
-  // Group items by category
-  const grouped = groupByCategory(activeItems, categories);
+  // Group all active items by category (for filter chip counts)
+  const allGrouped = groupByCategory(activeItems, categories);
+
+  // Build category chips data from groups that have items
+  const categoryChips = allGrouped
+    .filter((g) => g.category !== null)
+    .map((g) => ({
+      id: g.category!.id,
+      name: g.category!.name,
+      count: g.items.length,
+    }));
+
+  const uncategorizedCount =
+    allGrouped.find((g) => g.category === null)?.items.length ?? 0;
+
+  // Apply filter
+  const filteredGroups =
+    activeFilter === 'all'
+      ? allGrouped
+      : allGrouped.filter((g) => {
+          if (activeFilter === null) return g.category === null;
+          return g.category?.id === activeFilter;
+        });
 
   return (
     <div className="pb-4">
-      {grouped.map((group) => {
-        const isUncategorized = group.category === null;
-        const categoryName = isUncategorized
-          ? 'Do sklasyfikowania'
-          : group.category!.name;
-        const categoryIcon = isUncategorized
-          ? 'CircleHelp'
-          : group.category!.icon;
+      <CategoryFilters
+        categories={categoryChips}
+        activeFilter={activeFilter}
+        onFilterChange={setActiveFilter}
+        uncategorizedCount={uncategorizedCount}
+      />
 
-        return (
-          <div key={isUncategorized ? 'uncategorized' : group.category!.id}>
-            <CategoryHeader
-              name={categoryName}
-              icon={categoryIcon}
-              count={group.items.length}
-              isUncategorized={isUncategorized}
-            />
-            <div className="mx-4 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
-              {group.items.map((item) => (
-                <ShoppingItem
-                  key={item.id}
-                  id={item.id}
-                  productName={item.product_name}
-                  isChecked={item.is_checked}
-                  addedBy={item.added_by}
-                  checkedBy={item.checked_by}
-                  checkedAt={item.checked_at}
-                  createdAt={item.created_at}
-                  memberNames={memberNames}
-                  isUncategorized={isUncategorized}
-                />
-              ))}
+      {filteredGroups.length === 0 ? (
+        <div className="px-4 py-8 text-center text-sm text-text-tertiary">
+          Brak pozycji w tej kategorii
+        </div>
+      ) : (
+        filteredGroups.map((group) => {
+          const isUncategorized = group.category === null;
+          const categoryName = isUncategorized
+            ? 'Do sklasyfikowania'
+            : group.category!.name;
+          const categoryIcon = isUncategorized
+            ? 'CircleHelp'
+            : group.category!.icon;
+
+          return (
+            <div key={isUncategorized ? 'uncategorized' : group.category!.id}>
+              <CategoryHeader
+                name={categoryName}
+                icon={categoryIcon}
+                count={group.items.length}
+                isUncategorized={isUncategorized}
+              />
+              <div className="mx-4 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+                {group.items.map((item) => (
+                  <ShoppingItem
+                    key={item.id}
+                    id={item.id}
+                    productName={item.product_name}
+                    isChecked={item.is_checked}
+                    addedBy={item.added_by}
+                    checkedBy={item.checked_by}
+                    checkedAt={item.checked_at}
+                    createdAt={item.created_at}
+                    memberNames={memberNames}
+                    isUncategorized={isUncategorized}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })
+      )}
     </div>
   );
 }
