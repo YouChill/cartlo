@@ -7,7 +7,7 @@
 # Tworzy: milestones, labels, 22 issues
 # =============================================================================
 
-set -euo pipefail
+set -eo pipefail
 
 # Kolory do outputu
 GREEN='\033[0;32m'
@@ -37,6 +37,47 @@ if ! gh repo view &> /dev/null; then
     echo "  git init && gh repo create cartlo --private --source=. --push"
     exit 1
 fi
+
+# =============================================================================
+# HELPER: tworzenie issue tylko jesli nie istnieje (po tytule)
+# =============================================================================
+# Pobierz liste tytulow istniejacych OPEN issues (raz, cache w zmiennej)
+EXISTING_ISSUES=$(gh issue list --state all --limit 200 --json title --jq '.[].title')
+
+BODY_TMP=$(mktemp)
+trap "rm -f $BODY_TMP" EXIT
+
+# Tworzy issue jesli nie istnieje. Body przekazywane przez plik $BODY_TMP.
+# Uzycie:
+#   cat <<'EOF' > "$BODY_TMP"
+#   body content...
+#   EOF
+#   create_issue_if_not_exists --title "Title" --milestone "$M1" --label "a,b"
+create_issue_if_not_exists() {
+    # Parsuj --title z argumentow
+    local title=""
+    local args=()
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --title)
+                title="$2"
+                args+=("--title" "$2")
+                shift 2
+                ;;
+            *)
+                args+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    # Sprawdz czy issue o takim tytule juz istnieje
+    if echo "$EXISTING_ISSUES" | grep -qxF "$title"; then
+        echo -e "  ${YELLOW}~${NC} $title (istnieje, pomijam)"
+        return 0
+    fi
+    gh issue create "${args[@]}" --body-file "$BODY_TMP"
+}
 
 # =============================================================================
 # LABELS
@@ -98,7 +139,7 @@ echo -e "  Milestones: $M1, $M2, $M3, $M4, $M5"
 echo ""
 
 # =============================================================================
-# ISSUES
+# ISSUES — uzywa create_issue_if_not_exists (skip jesli istnieje)
 # =============================================================================
 echo -e "${YELLOW}Tworzenie issues...${NC}"
 echo ""
@@ -108,11 +149,7 @@ echo ""
 # -----------------------------------------------------------------------------
 echo -e "${BLUE}--- M1: Project Setup ---${NC}"
 
-gh issue create \
-  --title "Inicjalizacja projektu Next.js + TypeScript + Tailwind" \
-  --milestone "$M1" \
-  --label "setup,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Utworzenie projektu Next.js 14+ z App Router jako fundament aplikacji.
 
@@ -147,14 +184,13 @@ Utworzenie projektu Next.js 14+ z App Router jako fundament aplikacji.
 - TypeScript strict mode wlaczony
 - ESLint + Prettier skonfigurowane
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Inicjalizacja projektu Next.js + TypeScript + Tailwind" \
+  --milestone "$M1" \
+  --label "setup,priority:high"
 echo -e "  ${GREEN}#1${NC} Inicjalizacja projektu Next.js + TypeScript + Tailwind"
 
-gh issue create \
-  --title "Konfiguracja shadcn/ui + Nunito font + Design tokens" \
-  --milestone "$M1" \
-  --label "setup,ui,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Konfiguracja warstwy wizualnej zgodnie z Design System (patrz `DESIGN_SYSTEM.md`).
 
@@ -182,14 +218,13 @@ Konfiguracja warstwy wizualnej zgodnie z Design System (patrz `DESIGN_SYSTEM.md`
 ## Referencje
 - `DESIGN_SYSTEM.md` sekcje 2-6, 12
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Konfiguracja shadcn/ui + Nunito font + Design tokens" \
+  --milestone "$M1" \
+  --label "setup,ui,priority:high"
 echo -e "  ${GREEN}#2${NC} Konfiguracja shadcn/ui + Nunito font + Design tokens"
 
-gh issue create \
-  --title "Setup Supabase — projekt, klient, env" \
-  --milestone "$M1" \
-  --label "setup,database,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Konfiguracja Supabase jako backend (auth, database, realtime).
 
@@ -218,14 +253,13 @@ Konfiguracja Supabase jako backend (auth, database, realtime).
 - Zmienne env poprawnie skonfigurowane
 - Brak wyciekow klucza (tylko ANON_KEY po stronie klienta)
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Setup Supabase — projekt, klient, env" \
+  --milestone "$M1" \
+  --label "setup,database,priority:high"
 echo -e "  ${GREEN}#3${NC} Setup Supabase — projekt, klient, env"
 
-gh issue create \
-  --title "Schemat bazy danych — migracje + seed kategorii i produktow" \
-  --milestone "$M1" \
-  --label "database,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Utworzenie pelnego schematu bazy danych z RLS policies i seed data.
 
@@ -317,7 +351,10 @@ Utworzenie pelnego schematu bazy danych z RLS policies i seed data.
 - Trigger auto-create profile dziala
 - Typy TypeScript zaktualizowane po migracji
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Schemat bazy danych — migracje + seed kategorii i produktow" \
+  --milestone "$M1" \
+  --label "database,priority:high"
 echo -e "  ${GREEN}#4${NC} Schemat bazy danych — migracje + seed"
 
 echo ""
@@ -327,11 +364,7 @@ echo ""
 # -----------------------------------------------------------------------------
 echo -e "${BLUE}--- M2: Auth & Family ---${NC}"
 
-gh issue create \
-  --title "Strona logowania i rejestracji" \
-  --milestone "$M2" \
-  --label "auth,ui,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Formularz logowania/rejestracji z Supabase Auth.
 
@@ -382,14 +415,13 @@ Formularz logowania/rejestracji z Supabase Auth.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 11.4
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Strona logowania i rejestracji" \
+  --milestone "$M2" \
+  --label "auth,ui,priority:high"
 echo -e "  ${GREEN}#5${NC} Strona logowania i rejestracji"
 
-gh issue create \
-  --title "Middleware auth + protected routes" \
-  --milestone "$M2" \
-  --label "auth,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Next.js middleware sprawdzajacy sesje Supabase i chroniacy routes.
 
@@ -410,14 +442,13 @@ Next.js middleware sprawdzajacy sesje Supabase i chroniacy routes.
 - Sesja jest odswiezana automatycznie
 - Publiczne routes sa dostepne bez logowania
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Middleware auth + protected routes" \
+  --milestone "$M2" \
+  --label "auth,priority:high"
 echo -e "  ${GREEN}#6${NC} Middleware auth + protected routes"
 
-gh issue create \
-  --title "Onboarding — tworzenie rodziny" \
-  --milestone "$M2" \
-  --label "auth,feature,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Ekran po pierwszym logowaniu - tworzenie rodziny lub dolaczanie do istniejacej.
 
@@ -454,14 +485,13 @@ Ekran po pierwszym logowaniu - tworzenie rodziny lub dolaczanie do istniejacej.
 - Profile zostaje przypisany do rodziny
 - Link zaproszeniowy jest poprawny i kopiowalny
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Onboarding — tworzenie rodziny" \
+  --milestone "$M2" \
+  --label "auth,feature,priority:high"
 echo -e "  ${GREEN}#7${NC} Onboarding — tworzenie rodziny"
 
-gh issue create \
-  --title "Dolaczanie do rodziny przez link zaproszeniowy" \
-  --milestone "$M2" \
-  --label "auth,feature,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Obsluga linku zaproszeniowego `/join/[code]` — dolaczanie do istniejacej rodziny.
 
@@ -494,14 +524,13 @@ Obsluga linku zaproszeniowego `/join/[code]` — dolaczanie do istniejacej rodzi
 - Edge cases sa obslugiwane czytelnie
 - Po dolaczeniu user widzi liste zakupow rodziny
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Dolaczanie do rodziny przez link zaproszeniowy" \
+  --milestone "$M2" \
+  --label "auth,feature,priority:high"
 echo -e "  ${GREEN}#8${NC} Dolaczanie do rodziny przez link zaproszeniowy"
 
-gh issue create \
-  --title "Ekran zarzadzania rodzina" \
-  --milestone "$M2" \
-  --label "feature,ui,priority:medium" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Strona `/family` z lista czlonkow i zarzadzaniem zaproszeniami.
 
@@ -547,7 +576,10 @@ Strona `/family` z lista czlonkow i zarzadzaniem zaproszeniami.
 - Generowanie nowego linku dziala + stary jest nieaktywny
 - Design zgodny z DESIGN_SYSTEM.md sekcja 11.3
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Ekran zarzadzania rodzina" \
+  --milestone "$M2" \
+  --label "feature,ui,priority:medium"
 echo -e "  ${GREEN}#9${NC} Ekran zarzadzania rodzina"
 
 echo ""
@@ -557,11 +589,7 @@ echo ""
 # -----------------------------------------------------------------------------
 echo -e "${BLUE}--- M3: Shopping List Core ---${NC}"
 
-gh issue create \
-  --title "Komponent layout aplikacji + bottom navigation" \
-  --milestone "$M3" \
-  --label "ui,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Glowny layout aplikacji z responsywna nawigacja.
 
@@ -596,14 +624,13 @@ Glowny layout aplikacji z responsywna nawigacja.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.8, 10
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Komponent layout aplikacji + bottom navigation" \
+  --milestone "$M3" \
+  --label "ui,priority:high"
 echo -e "  ${GREEN}#10${NC} Layout aplikacji + bottom navigation"
 
-gh issue create \
-  --title "Widok listy zakupow pogrupowany wg kategorii" \
-  --milestone "$M3" \
-  --label "feature,ui,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Glowna strona aplikacji — lista zakupow pogrupowana po kategoriach.
 
@@ -636,14 +663,13 @@ Glowna strona aplikacji — lista zakupow pogrupowana po kategoriach.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.5, 7.6, 11.1
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Widok listy zakupow pogrupowany wg kategorii" \
+  --milestone "$M3" \
+  --label "feature,ui,priority:high"
 echo -e "  ${GREEN}#11${NC} Widok listy zakupow pogrupowany wg kategorii"
 
-gh issue create \
-  --title "Komponent pozycji na liscie z checkboxem" \
-  --milestone "$M3" \
-  --label "ui,feature,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Komponent `ShoppingItem` — pojedyncza pozycja na liscie z okraglym checkboxem.
 
@@ -675,14 +701,13 @@ Komponent `ShoppingItem` — pojedyncza pozycja na liscie z okraglym checkboxem.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.4
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Komponent pozycji na liscie z checkboxem" \
+  --milestone "$M3" \
+  --label "ui,feature,priority:high"
 echo -e "  ${GREEN}#12${NC} Komponent pozycji z checkboxem"
 
-gh issue create \
-  --title "Chipsy filtrujace kategorii" \
-  --milestone "$M3" \
-  --label "ui,feature,priority:medium" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Horyzontalny scroll z chipsami do filtrowania listy wg kategorii.
 
@@ -716,14 +741,13 @@ Horyzontalny scroll z chipsami do filtrowania listy wg kategorii.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.3
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Chipsy filtrujace kategorii" \
+  --milestone "$M3" \
+  --label "ui,feature,priority:medium"
 echo -e "  ${GREEN}#13${NC} Chipsy filtrujace kategorii"
 
-gh issue create \
-  --title "Sekcja Kupione — zwijana lista zaznaczonych pozycji" \
-  --milestone "$M3" \
-  --label "feature,ui,priority:medium" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Collapsible sekcja na dole listy z zaznaczonymi (kupionymi) pozycjami.
 
@@ -756,14 +780,13 @@ Collapsible sekcja na dole listy z zaznaczonymi (kupionymi) pozycjami.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.7
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Sekcja Kupione — zwijana lista zaznaczonych pozycji" \
+  --milestone "$M3" \
+  --label "feature,ui,priority:medium"
 echo -e "  ${GREEN}#14${NC} Sekcja Kupione"
 
-gh issue create \
-  --title "Dodawanie produktu — podstawowy input + Enter" \
-  --milestone "$M3" \
-  --label "feature,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Sticky input do dodawania produktow na liste. Wersja podstawowa (bez autocomplete).
 
@@ -797,7 +820,10 @@ Sticky input do dodawania produktow na liste. Wersja podstawowa (bez autocomplet
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.1
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Dodawanie produktu — podstawowy input + Enter" \
+  --milestone "$M3" \
+  --label "feature,priority:high"
 echo -e "  ${GREEN}#15${NC} Dodawanie produktu — input + Enter"
 
 echo ""
@@ -807,11 +833,7 @@ echo ""
 # -----------------------------------------------------------------------------
 echo -e "${BLUE}--- M4: Smart Features ---${NC}"
 
-gh issue create \
-  --title "Autocomplete — podpowiedzi z bazy produktow" \
-  --milestone "$M4" \
-  --label "feature,ui,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Rozszerzenie inputa o autocomplete z podpowiedziami z bazy produktow.
 
@@ -848,14 +870,13 @@ Rozszerzenie inputa o autocomplete z podpowiedziami z bazy produktow.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.2
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Autocomplete — podpowiedzi z bazy produktow" \
+  --milestone "$M4" \
+  --label "feature,ui,priority:high"
 echo -e "  ${GREEN}#16${NC} Autocomplete"
 
-gh issue create \
-  --title "Klasyfikacja nierozpoznanych produktow" \
-  --milestone "$M4" \
-  --label "feature,ui,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Mechanizm przypisywania kategorii do niesklasyfikowanych produktow (category_id = null).
 
@@ -887,14 +908,13 @@ Mechanizm przypisywania kategorii do niesklasyfikowanych produktow (category_id 
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 7.6
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Klasyfikacja nierozpoznanych produktow" \
+  --milestone "$M4" \
+  --label "feature,ui,priority:high"
 echo -e "  ${GREEN}#17${NC} Klasyfikacja nierozpoznanych produktow"
 
-gh issue create \
-  --title "Supabase Realtime — synchronizacja listy miedzy urzadzeniami" \
-  --milestone "$M4" \
-  --label "realtime,feature,priority:high" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Synchronizacja listy zakupow w czasie rzeczywistym miedzy czlonkami rodziny.
 
@@ -927,14 +947,13 @@ Synchronizacja listy zakupow w czasie rzeczywistym miedzy czlonkami rodziny.
 - Reconnect dziala po utracie i odzyskaniu sieci
 - Optimistic updates — brak lagow na urzadzeniu ktore robi zmiane
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Supabase Realtime — synchronizacja listy miedzy urzadzeniami" \
+  --milestone "$M4" \
+  --label "realtime,feature,priority:high"
 echo -e "  ${GREEN}#18${NC} Supabase Realtime"
 
-gh issue create \
-  --title "Inkrementacja usage_count + sortowanie podpowiedzi wg popularnosci" \
-  --milestone "$M4" \
-  --label "feature,priority:medium" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Tracking popularnosci produktow i wykorzystanie do sortowania podpowiedzi.
 
@@ -956,7 +975,10 @@ Tracking popularnosci produktow i wykorzystanie do sortowania podpowiedzi.
 - Autocomplete sortuje wg popularnosci
 - Czesto dodawane produkty sa na gorze podpowiedzi
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Inkrementacja usage_count + sortowanie podpowiedzi wg popularnosci" \
+  --milestone "$M4" \
+  --label "feature,priority:medium"
 echo -e "  ${GREEN}#19${NC} Inkrementacja usage_count"
 
 echo ""
@@ -966,11 +988,7 @@ echo ""
 # -----------------------------------------------------------------------------
 echo -e "${BLUE}--- M5: Polish & PWA ---${NC}"
 
-gh issue create \
-  --title "Animacje checkbox + znikanie pozycji z listy" \
-  --milestone "$M5" \
-  --label "ux,ui,priority:medium" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Implementacja animacji zaznaczania pozycji zgodnie z Design System.
 
@@ -1006,14 +1024,13 @@ Implementacja animacji zaznaczania pozycji zgodnie z Design System.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 9
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Animacje checkbox + znikanie pozycji z listy" \
+  --milestone "$M5" \
+  --label "ux,ui,priority:medium"
 echo -e "  ${GREEN}#20${NC} Animacje checkbox + znikanie"
 
-gh issue create \
-  --title "Animacja przypisywania kategorii + dodawania nowych pozycji" \
-  --milestone "$M5" \
-  --label "ux,ui,priority:medium" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Animacje dla dodawania produktow i przypisywania kategorii.
 
@@ -1055,14 +1072,13 @@ Animacje dla dodawania produktow i przypisywania kategorii.
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 9
 EOF
-)"
+create_issue_if_not_exists \
+  --title "Animacja przypisywania kategorii + dodawania nowych pozycji" \
+  --milestone "$M5" \
+  --label "ux,ui,priority:medium"
 echo -e "  ${GREEN}#21${NC} Animacja kategoryzacji + dodawania"
 
-gh issue create \
-  --title "PWA — manifest, service worker, ikona na ekranie" \
-  --milestone "$M5" \
-  --label "pwa,setup,priority:medium" \
-  --body "$(cat <<'EOF'
+cat <<'EOF' > "$BODY_TMP"
 ## Opis
 Konfiguracja Progressive Web App — aplikacja moze byc zainstalowana na ekranie glownym telefonu.
 
@@ -1108,7 +1124,10 @@ Konfiguracja Progressive Web App — aplikacja moze byc zainstalowana na ekranie
 ## Referencje
 - DESIGN_SYSTEM.md sekcja 2.3 (kolory), 7.8 (safe area)
 EOF
-)"
+create_issue_if_not_exists \
+  --title "PWA — manifest, service worker, ikona na ekranie" \
+  --milestone "$M5" \
+  --label "pwa,setup,priority:medium"
 echo -e "  ${GREEN}#22${NC} PWA — manifest, service worker, ikona"
 
 echo ""

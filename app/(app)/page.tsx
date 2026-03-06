@@ -62,6 +62,7 @@ export default async function ListPage() {
       items={items ?? []}
       categories={categories ?? []}
       memberNames={memberNames}
+      familyId={profile.family_id}
     />
   );
 }
