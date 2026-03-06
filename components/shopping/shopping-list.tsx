@@ -7,6 +7,7 @@ import { CategoryFilters } from './category-filters';
 import { AddProductInput } from './add-product-input';
 import { CheckedSection } from './checked-section';
 import { ShoppingItem } from './shopping-item';
+import { useRealtimeShoppingList } from '@/hooks/use-realtime-shopping-list';
 
 type ShoppingItemData = {
   id: string;
@@ -35,14 +36,19 @@ export function ShoppingList({
   items,
   categories,
   memberNames,
+  familyId,
 }: {
   items: ShoppingItemData[];
   categories: Category[];
   memberNames: Record<string, string>;
+  familyId: string;
 }) {
   const [activeFilter, setActiveFilter] = useState<string | null | 'all'>(
     'all',
   );
+
+  // Subscribe to realtime updates from other family members
+  useRealtimeShoppingList(familyId);
 
   // Separate active and checked items
   const activeItems = items.filter((item) => !item.is_checked);
@@ -51,7 +57,7 @@ export function ShoppingList({
   if (activeItems.length === 0) {
     return (
       <div className="pb-4">
-        <div className="sticky top-0 z-20 bg-[rgba(250,250,248,0.85)] backdrop-blur-[12px]">
+        <div className="sticky top-0 z-20 bg-[var(--background)]/85 backdrop-blur-[12px]">
           <AddProductInput />
         </div>
         <EmptyState />
@@ -86,7 +92,7 @@ export function ShoppingList({
 
   return (
     <div className="pb-4">
-      <div className="sticky top-0 z-20 bg-[rgba(250,250,248,0.85)] backdrop-blur-[12px]">
+      <div className="sticky top-0 z-20 bg-[var(--background)]/85 backdrop-blur-[12px]">
         <AddProductInput />
         <CategoryFilters
           categories={categoryChips}

@@ -186,7 +186,7 @@ export function AddProductInput() {
       {showDropdown && totalItems > 0 && (
         <div
           ref={dropdownRef}
-          className="absolute left-4 right-4 z-30 mt-1 max-h-[360px] overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-surface shadow-lg"
+          className="absolute left-4 right-4 z-30 mt-1 max-h-[360px] origin-top animate-slide-down overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-surface shadow-lg"
           role="listbox"
         >
           {suggestions.map((suggestion, index) => {

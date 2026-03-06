@@ -152,7 +152,7 @@ export async function addProduct(
     // Look up product in products table for auto-categorization
     const { data: knownProduct } = await supabase
       .from('products')
-      .select('id, category_id')
+      .select('id, category_id, usage_count')
       .ilike('name', trimmed)
       .or(`family_id.is.null,family_id.eq.${profile.family_id}`)
       .limit(1)
@@ -160,7 +160,11 @@ export async function addProduct(
 
     if (knownProduct) {
       categoryId = knownProduct.category_id;
-      // usage_count increment will be handled in issue #34
+      // Increment usage_count for better autocomplete sorting
+      await supabase
+        .from('products')
+        .update({ usage_count: knownProduct.usage_count + 1 })
+        .eq('id', knownProduct.id);
     } else {
       // Add as new product (uncategorized)
       await supabase.from('products').insert({
@@ -182,6 +186,68 @@ export async function addProduct(
 
   if (error) {
     return { success: false, error: 'Nie udalo sie dodac produktu' };
+  }
+
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function classifyProduct(
+  itemId: string,
+  productName: string,
+  categoryId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return { success: false, error: 'Nie jestes zalogowany' };
+  }
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('family_id')
+    .eq('id', user.id)
+    .single();
+
+  if (!profile?.family_id) {
+    return { success: false, error: 'Nie nalezysz do rodziny' };
+  }
+
+  // Update the shopping item's category
+  const { error: itemError } = await supabase
+    .from('shopping_items')
+    .update({ category_id: categoryId })
+    .eq('id', itemId);
+
+  if (itemError) {
+    return { success: false, error: 'Nie udalo sie zaktualizowac pozycji' };
+  }
+
+  // Upsert product — teach the system for future auto-categorization
+  const { data: existingProduct } = await supabase
+    .from('products')
+    .select('id')
+    .ilike('name', productName)
+    .or(`family_id.is.null,family_id.eq.${profile.family_id}`)
+    .limit(1)
+    .single();
+
+  if (existingProduct) {
+    await supabase
+      .from('products')
+      .update({ category_id: categoryId })
+      .eq('id', existingProduct.id);
+  } else {
+    await supabase.from('products').insert({
+      name: productName,
+      category_id: categoryId,
+      family_id: profile.family_id,
+      usage_count: 1,
+    });
   }
 
   revalidatePath('/');
