@@ -1,34 +1,33 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { eq, and, or, isNull, ilike, desc, sql } from 'drizzle-orm';
+import { getCurrentUserId } from '@/lib/auth';
+import { db } from '@/lib/db';
+import {
+  profiles,
+  shoppingItems,
+  products,
+  categories,
+} from '@/lib/db/schema';
 
 export async function toggleShoppingItem(
   itemId: string,
   isChecked: boolean,
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return { success: false, error: 'Nie jestes zalogowany' };
   }
 
-  const { error } = await supabase
-    .from('shopping_items')
-    .update({
-      is_checked: isChecked,
-      checked_by: isChecked ? user.id : null,
-      checked_at: isChecked ? new Date().toISOString() : null,
+  await db
+    .update(shoppingItems)
+    .set({
+      isChecked,
+      checkedBy: isChecked ? userId : null,
+      checkedAt: isChecked ? new Date() : null,
     })
-    .eq('id', itemId);
-
-  if (error) {
-    return { success: false, error: 'Nie udalo sie zaktualizowac pozycji' };
-  }
+    .where(eq(shoppingItems.id, itemId));
 
   revalidatePath('/');
   return { success: true };
@@ -48,58 +47,68 @@ export async function searchProducts(
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const supabase = await createClient();
+  const userId = await getCurrentUserId();
+  if (!userId) return [];
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
-  if (!user) return [];
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('family_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile?.family_id) return [];
+  if (!profile?.familyId) return [];
 
   // Search products by name (case-insensitive)
-  const { data: products } = await supabase
-    .from('products')
-    .select('id, name, category_id, usage_count')
-    .or(`family_id.is.null,family_id.eq.${profile.family_id}`)
-    .ilike('name', `%${trimmed}%`)
-    .order('usage_count', { ascending: false })
+  const matchedProducts = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      categoryId: products.categoryId,
+      usageCount: products.usageCount,
+    })
+    .from(products)
+    .where(
+      and(
+        ilike(products.name, `%${trimmed}%`),
+        or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+      ),
+    )
+    .orderBy(desc(products.usageCount))
     .limit(8);
 
-  if (!products || products.length === 0) return [];
+  if (matchedProducts.length === 0) return [];
 
   // Fetch category names for matched products
   const categoryIds = [
-    ...new Set(products.map((p) => p.category_id).filter(Boolean)),
+    ...new Set(matchedProducts.map((p) => p.categoryId).filter(Boolean)),
   ] as string[];
 
-  let categoryMap: Record<string, { name: string; icon: string }> = {};
+  const categoryMap: Record<string, { name: string; icon: string }> = {};
   if (categoryIds.length > 0) {
-    const { data: categories } = await supabase
-      .from('categories')
-      .select('id, name, icon')
-      .in('id', categoryIds);
+    const cats = await db
+      .select({
+        id: categories.id,
+        name: categories.name,
+        icon: categories.icon,
+      })
+      .from(categories)
+      .where(sql`${categories.id} IN ${categoryIds}`);
 
-    if (categories) {
-      categories.forEach((c) => {
-        categoryMap[c.id] = { name: c.name, icon: c.icon };
-      });
-    }
+    cats.forEach((c) => {
+      categoryMap[c.id] = { name: c.name, icon: c.icon };
+    });
   }
 
-  return products.map((p) => ({
+  return matchedProducts.map((p) => ({
     id: p.id,
     name: p.name,
-    category_id: p.category_id,
-    category_name: p.category_id ? (categoryMap[p.category_id]?.name ?? null) : null,
-    category_icon: p.category_id ? (categoryMap[p.category_id]?.icon ?? null) : null,
+    category_id: p.categoryId,
+    category_name: p.categoryId
+      ? (categoryMap[p.categoryId]?.name ?? null)
+      : null,
+    category_icon: p.categoryId
+      ? (categoryMap[p.categoryId]?.icon ?? null)
+      : null,
   }));
 }
 
@@ -112,36 +121,35 @@ export async function addProduct(
     return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return { success: false, error: 'Nie jestes zalogowany' };
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('family_id')
-    .eq('id', user.id)
-    .single();
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
-  if (!profile?.family_id) {
+  if (!profile?.familyId) {
     return { success: false, error: 'Nie nalezysz do rodziny' };
   }
 
   // Check for duplicates on active list
-  const { data: existing } = await supabase
-    .from('shopping_items')
-    .select('id')
-    .eq('family_id', profile.family_id)
-    .eq('is_checked', false)
-    .ilike('product_name', trimmed)
+  const existing = await db
+    .select({ id: shoppingItems.id })
+    .from(shoppingItems)
+    .where(
+      and(
+        eq(shoppingItems.familyId, profile.familyId),
+        eq(shoppingItems.isChecked, false),
+        ilike(shoppingItems.productName, trimmed),
+      ),
+    )
     .limit(1);
 
-  if (existing && existing.length > 0) {
+  if (existing.length > 0) {
     return { success: false, error: 'Ten produkt juz jest na liscie' };
   }
 
@@ -150,39 +158,49 @@ export async function addProduct(
 
   if (knownCategoryId === undefined) {
     // Look up product in products table for auto-categorization
-    const { data: knownProduct } = await supabase
-      .from('products')
-      .select('id, category_id')
-      .ilike('name', trimmed)
-      .or(`family_id.is.null,family_id.eq.${profile.family_id}`)
-      .limit(1)
-      .single();
+    const [knownProduct] = await db
+      .select({
+        id: products.id,
+        categoryId: products.categoryId,
+        usageCount: products.usageCount,
+      })
+      .from(products)
+      .where(
+        and(
+          ilike(products.name, trimmed),
+          or(
+            isNull(products.familyId),
+            eq(products.familyId, profile.familyId),
+          ),
+        ),
+      )
+      .limit(1);
 
     if (knownProduct) {
-      categoryId = knownProduct.category_id;
-      // usage_count increment will be handled in issue #34
+      categoryId = knownProduct.categoryId;
+      // Increment usage_count for better autocomplete sorting
+      await db
+        .update(products)
+        .set({ usageCount: knownProduct.usageCount + 1 })
+        .where(eq(products.id, knownProduct.id));
     } else {
       // Add as new product (uncategorized)
-      await supabase.from('products').insert({
+      await db.insert(products).values({
         name: trimmed,
-        category_id: null,
-        family_id: profile.family_id,
-        usage_count: 1,
+        categoryId: null,
+        familyId: profile.familyId,
+        usageCount: 1,
       });
     }
   }
 
   // Insert shopping item
-  const { error } = await supabase.from('shopping_items').insert({
-    family_id: profile.family_id,
-    product_name: trimmed,
-    category_id: categoryId,
-    added_by: user.id,
+  await db.insert(shoppingItems).values({
+    familyId: profile.familyId,
+    productName: trimmed,
+    categoryId,
+    addedBy: userId,
   });
-
-  if (error) {
-    return { success: false, error: 'Nie udalo sie dodac produktu' };
-  }
 
   revalidatePath('/');
   return { success: true };
@@ -192,36 +210,29 @@ export async function clearCheckedItems(): Promise<{
   success: boolean;
   error?: string;
 }> {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return { success: false, error: 'Nie jestes zalogowany' };
   }
 
-  // Get user's family_id
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('family_id')
-    .eq('id', user.id)
-    .single();
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
-  if (!profile?.family_id) {
+  if (!profile?.familyId) {
     return { success: false, error: 'Nie nalezysz do rodziny' };
   }
 
-  const { error } = await supabase
-    .from('shopping_items')
-    .delete()
-    .eq('family_id', profile.family_id)
-    .eq('is_checked', true);
-
-  if (error) {
-    return { success: false, error: 'Nie udalo sie usunac pozycji' };
-  }
+  await db
+    .delete(shoppingItems)
+    .where(
+      and(
+        eq(shoppingItems.familyId, profile.familyId),
+        eq(shoppingItems.isChecked, true),
+      ),
+    );
 
   revalidatePath('/');
   return { success: true };

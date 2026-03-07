@@ -1,7 +1,10 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { eq } from 'drizzle-orm';
+import { getCurrentUserId } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { families, profiles } from '@/lib/db/schema';
 
 export type JoinFormState = {
   error: string | null;
@@ -28,24 +31,19 @@ export async function joinFamily(
     return { error: 'Podaj swoje imie.', success: false, familyName: null };
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     redirect(`/login?join=${code}`);
   }
 
   // Check if user already has a family
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('family_id')
-    .eq('id', user.id)
-    .single();
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
-  if (profile?.family_id) {
+  if (profile?.familyId) {
     return {
       error: 'Juz nalezysz do rodziny.',
       success: false,
@@ -54,11 +52,11 @@ export async function joinFamily(
   }
 
   // Validate invite code
-  const { data: family } = await supabase
-    .from('families')
-    .select('id, name')
-    .eq('invite_code', code)
-    .single();
+  const [family] = await db
+    .select({ id: families.id, name: families.name })
+    .from(families)
+    .where(eq(families.inviteCode, code))
+    .limit(1);
 
   if (!family) {
     return {
@@ -69,18 +67,10 @@ export async function joinFamily(
   }
 
   // Join the family
-  const { error: updateError } = await supabase
-    .from('profiles')
-    .update({ family_id: family.id, display_name: displayName })
-    .eq('id', user.id);
-
-  if (updateError) {
-    return {
-      error: 'Nie udalo sie dolaczyc do rodziny. Sprobuj ponownie.',
-      success: false,
-      familyName: null,
-    };
-  }
+  await db
+    .update(profiles)
+    .set({ familyId: family.id, displayName })
+    .where(eq(profiles.id, userId));
 
   return {
     error: null,

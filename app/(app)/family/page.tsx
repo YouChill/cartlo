@@ -1,5 +1,8 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { eq, asc } from 'drizzle-orm';
+import { getCurrentUserId } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { profiles, families } from '@/lib/db/schema';
 import { FamilyClient } from './family-client';
 
 export const metadata = {
@@ -7,44 +10,54 @@ export const metadata = {
 };
 
 export default async function FamilyPage() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect('/login');
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/login');
 
   // Get current user's profile
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('family_id, display_name')
-    .eq('id', user.id)
-    .single();
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
-  if (!profile?.family_id) redirect('/onboarding');
+  if (!profile?.familyId) redirect('/onboarding');
 
   // Get family info
-  const { data: family } = await supabase
-    .from('families')
-    .select('id, name, invite_code, created_at')
-    .eq('id', profile.family_id)
-    .single();
+  const [family] = await db
+    .select({
+      id: families.id,
+      name: families.name,
+      invite_code: families.inviteCode,
+      created_at: families.createdAt,
+    })
+    .from(families)
+    .where(eq(families.id, profile.familyId))
+    .limit(1);
 
   if (!family) redirect('/onboarding');
 
   // Get all family members
-  const { data: members } = await supabase
-    .from('profiles')
-    .select('id, display_name, created_at')
-    .eq('family_id', family.id)
-    .order('created_at', { ascending: true });
+  const members = await db
+    .select({
+      id: profiles.id,
+      display_name: profiles.displayName,
+      created_at: profiles.createdAt,
+    })
+    .from(profiles)
+    .where(eq(profiles.familyId, family.id))
+    .orderBy(asc(profiles.createdAt));
 
   return (
     <FamilyClient
-      family={family}
-      members={members ?? []}
-      currentUserId={user.id}
+      family={{
+        ...family,
+        created_at: family.created_at.toISOString(),
+      }}
+      members={members.map((m) => ({
+        ...m,
+        created_at: m.created_at.toISOString(),
+      }))}
+      currentUserId={userId}
     />
   );
 }

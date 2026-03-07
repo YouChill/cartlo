@@ -1,66 +1,78 @@
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { eq, or, isNull, asc } from 'drizzle-orm';
+import { getCurrentUserId } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { profiles, shoppingItems, categories, } from '@/lib/db/schema';
 import { ShoppingList } from '@/components/shopping/shopping-list';
 
 export default async function ListPage() {
-  const supabase = await createClient();
+  const userId = await getCurrentUserId();
+  if (!userId) redirect('/login');
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
-  if (!user) redirect('/login');
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('family_id')
-    .eq('id', user.id)
-    .single();
-
-  if (!profile?.family_id) redirect('/onboarding');
+  if (!profile?.familyId) redirect('/onboarding');
 
   // Fetch shopping items for the family
-  const { data: items, error: itemsError } = await supabase
-    .from('shopping_items')
-    .select(
-      'id, product_name, category_id, is_checked, added_by, checked_by, checked_at, created_at',
-    )
-    .eq('family_id', profile.family_id)
-    .order('created_at', { ascending: true });
+  const items = await db
+    .select({
+      id: shoppingItems.id,
+      product_name: shoppingItems.productName,
+      category_id: shoppingItems.categoryId,
+      is_checked: shoppingItems.isChecked,
+      added_by: shoppingItems.addedBy,
+      checked_by: shoppingItems.checkedBy,
+      checked_at: shoppingItems.checkedAt,
+      created_at: shoppingItems.createdAt,
+    })
+    .from(shoppingItems)
+    .where(eq(shoppingItems.familyId, profile.familyId))
+    .orderBy(asc(shoppingItems.createdAt));
 
   // Fetch categories
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('id, name, icon, sort_order')
-    .or(`family_id.is.null,family_id.eq.${profile.family_id}`)
-    .order('sort_order', { ascending: true });
+  const cats = await db
+    .select({
+      id: categories.id,
+      name: categories.name,
+      icon: categories.icon,
+      sort_order: categories.sortOrder,
+    })
+    .from(categories)
+    .where(
+      or(
+        isNull(categories.familyId),
+        eq(categories.familyId, profile.familyId),
+      ),
+    )
+    .orderBy(asc(categories.sortOrder));
 
   // Fetch family member names for meta info
-  const { data: members } = await supabase
-    .from('profiles')
-    .select('id, display_name')
-    .eq('family_id', profile.family_id);
-
-  if (itemsError) {
-    return (
-      <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
-        <p className="text-sm text-error-text">
-          Nie udalo sie zaladowac listy. Sprobuj ponownie.
-        </p>
-      </div>
-    );
-  }
+  const members = await db
+    .select({ id: profiles.id, display_name: profiles.displayName })
+    .from(profiles)
+    .where(eq(profiles.familyId, profile.familyId));
 
   // Build member name lookup
   const memberNames: Record<string, string> = {};
-  members?.forEach((m) => {
+  members.forEach((m) => {
     memberNames[m.id] = m.display_name;
   });
 
+  // Serialize dates to strings for client components
+  const serializedItems = items.map((item) => ({
+    ...item,
+    checked_at: item.checked_at?.toISOString() ?? null,
+    created_at: item.created_at.toISOString(),
+  }));
+
   return (
     <ShoppingList
-      items={items ?? []}
-      categories={categories ?? []}
+      items={serializedItems}
+      categories={cats}
       memberNames={memberNames}
     />
   );

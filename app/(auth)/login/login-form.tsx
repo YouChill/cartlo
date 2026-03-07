@@ -3,28 +3,28 @@
 import { useActionState, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { signIn, signUp, type AuthFormState } from './actions';
+import { login, register, type AuthFormState } from './actions';
 
 const initialState: AuthFormState = { error: null };
 
 export function LoginForm() {
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [signInState, signInAction, signInPending] = useActionState(
-    signIn,
+  const [loginState, loginAction, loginPending] = useActionState(
+    login,
     initialState,
   );
-  const [signUpState, signUpAction, signUpPending] = useActionState(
-    signUp,
+  const [registerState, registerAction, registerPending] = useActionState(
+    register,
     initialState,
   );
 
   const isLogin = mode === 'login';
-  const error = isLogin ? signInState.error : signUpState.error;
-  const isPending = isLogin ? signInPending : signUpPending;
+  const error = isLogin ? loginState.error : registerState.error;
+  const isPending = isLogin ? loginPending : registerPending;
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-6 shadow-md">
-      <form action={isLogin ? signInAction : signUpAction}>
+      <form action={isLogin ? loginAction : registerAction}>
         <div className="space-y-4">
           <div>
             <label

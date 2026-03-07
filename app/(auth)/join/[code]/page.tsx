@@ -1,4 +1,6 @@
-import { createClient } from '@/lib/supabase/server';
+import { eq } from 'drizzle-orm';
+import { db } from '@/lib/db';
+import { families } from '@/lib/db/schema';
 import { JoinForm } from './join-form';
 
 export const metadata = {
@@ -13,12 +15,11 @@ export default async function JoinPage({ params }: Props) {
   const { code } = await params;
 
   // Validate invite code server-side
-  const supabase = await createClient();
-  const { data: family } = await supabase
-    .from('families')
-    .select('name')
-    .eq('invite_code', code)
-    .single();
+  const [family] = await db
+    .select({ name: families.name })
+    .from(families)
+    .where(eq(families.inviteCode, code))
+    .limit(1);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4">

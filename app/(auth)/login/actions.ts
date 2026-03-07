@@ -1,13 +1,17 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import bcrypt from 'bcryptjs';
+import { eq } from 'drizzle-orm';
+import { signIn } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { users, profiles } from '@/lib/db/schema';
 
 export type AuthFormState = {
   error: string | null;
 };
 
-export async function signIn(
+export async function login(
   _prevState: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
@@ -18,33 +22,31 @@ export async function signIn(
     return { error: 'Wypelnij wszystkie pola.' };
   }
 
-  const supabase = await createClient();
-
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
-
-  if (error) {
-    if (error.message === 'Invalid login credentials') {
-      return { error: 'Nieprawidlowy email lub haslo.' };
-    }
-    return { error: error.message };
+  try {
+    await signIn('credentials', {
+      email: email.toLowerCase(),
+      password,
+      redirect: false,
+    });
+  } catch {
+    return { error: 'Nieprawidlowy email lub haslo.' };
   }
 
   // Check if user has a family
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const [user] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
 
   if (user) {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('family_id')
-      .eq('id', user.id)
-      .single();
+    const [profile] = await db
+      .select({ familyId: profiles.familyId })
+      .from(profiles)
+      .where(eq(profiles.id, user.id))
+      .limit(1);
 
-    if (profile?.family_id) {
+    if (profile?.familyId) {
       redirect('/');
     } else {
       redirect('/onboarding');
@@ -54,7 +56,7 @@ export async function signIn(
   redirect('/');
 }
 
-export async function signUp(
+export async function register(
   _prevState: AuthFormState,
   formData: FormData,
 ): Promise<AuthFormState> {
@@ -79,18 +81,46 @@ export async function signUp(
     return { error: 'Hasla nie sa identyczne.' };
   }
 
-  const supabase = await createClient();
+  const normalizedEmail = email.toLowerCase();
 
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
+  // Check if email already exists
+  const [existing] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, normalizedEmail))
+    .limit(1);
+
+  if (existing) {
+    return { error: 'Ten email jest juz zarejestrowany.' };
+  }
+
+  // Create user
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  const [newUser] = await db
+    .insert(users)
+    .values({
+      email: normalizedEmail,
+      passwordHash,
+    })
+    .returning({ id: users.id });
+
+  // Create profile
+  const displayName = normalizedEmail.split('@')[0];
+  await db.insert(profiles).values({
+    id: newUser.id,
+    displayName,
   });
 
-  if (error) {
-    if (error.message.includes('already registered')) {
-      return { error: 'Ten email jest juz zarejestrowany.' };
-    }
-    return { error: error.message };
+  // Sign in immediately
+  try {
+    await signIn('credentials', {
+      email: normalizedEmail,
+      password,
+      redirect: false,
+    });
+  } catch {
+    // Sign in might throw on redirect, that's ok
   }
 
   redirect('/onboarding');

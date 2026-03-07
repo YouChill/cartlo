@@ -2,39 +2,33 @@
 
 import { nanoid } from 'nanoid';
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
+import { eq } from 'drizzle-orm';
+import { getCurrentUserId } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { profiles, families } from '@/lib/db/schema';
 
 export async function regenerateInviteCode() {
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     return { error: 'Nie jestes zalogowany.' };
   }
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('family_id')
-    .eq('id', user.id)
-    .single();
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
-  if (!profile?.family_id) {
+  if (!profile?.familyId) {
     return { error: 'Nie nalezysz do zadnej rodziny.' };
   }
 
   const newCode = nanoid(8);
 
-  const { error } = await supabase
-    .from('families')
-    .update({ invite_code: newCode })
-    .eq('id', profile.family_id);
-
-  if (error) {
-    return { error: 'Nie udalo sie wygenerowac nowego kodu.' };
-  }
+  await db
+    .update(families)
+    .set({ inviteCode: newCode })
+    .where(eq(families.id, profile.familyId));
 
   revalidatePath('/family');
   return { error: null };

@@ -2,7 +2,10 @@
 
 import { redirect } from 'next/navigation';
 import { nanoid } from 'nanoid';
-import { createClient } from '@/lib/supabase/server';
+import { eq } from 'drizzle-orm';
+import { getCurrentUserId } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { families, profiles } from '@/lib/db/schema';
 
 export type OnboardingFormState = {
   error: string | null;
@@ -29,13 +32,8 @@ export async function createFamily(
     return { error: 'Podaj swoje imie.', inviteCode: null, familyName: null };
   }
 
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const userId = await getCurrentUserId();
+  if (!userId) {
     redirect('/login');
   }
 
@@ -43,13 +41,12 @@ export async function createFamily(
   const inviteCode = nanoid(8);
 
   // Create family
-  const { data: family, error: familyError } = await supabase
-    .from('families')
-    .insert({ name: familyName, invite_code: inviteCode })
-    .select('id')
-    .single();
+  const [family] = await db
+    .insert(families)
+    .values({ name: familyName, inviteCode })
+    .returning({ id: families.id });
 
-  if (familyError || !family) {
+  if (!family) {
     return {
       error: 'Nie udalo sie utworzyc rodziny. Sprobuj ponownie.',
       inviteCode: null,
@@ -58,18 +55,10 @@ export async function createFamily(
   }
 
   // Update profile: assign family_id and display_name
-  const { error: profileError } = await supabase
-    .from('profiles')
-    .update({ family_id: family.id, display_name: displayName })
-    .eq('id', user.id);
-
-  if (profileError) {
-    return {
-      error: 'Nie udalo sie przypisac do rodziny. Sprobuj ponownie.',
-      inviteCode: null,
-      familyName: null,
-    };
-  }
+  await db
+    .update(profiles)
+    .set({ familyId: family.id, displayName })
+    .where(eq(profiles.id, userId));
 
   return {
     error: null,
