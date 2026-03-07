@@ -1,36 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cartlo
 
-## Getting Started
+Rodzinna aplikacja do wspólnych list zakupów. Umożliwia tworzenie rodziny, zapraszanie członków i wspólne zarządzanie listą zakupów w czasie rzeczywistym.
 
-First, run the development server:
+## Funkcjonalności
+
+- **Lista zakupów** — dodawanie, zaznaczanie i usuwanie produktów z kategoryzacją
+- **Rodzina** — tworzenie rodziny, zapraszanie członków przez link lub Web Share API
+- **Ustawienia** — edycja nazwy użytkownika, zmiana hasła, wybór motywu (jasny/ciemny/systemowy)
+- **Onboarding** — tworzenie nowej rodziny lub dołączanie do istniejącej przez kod zaproszenia
+- **PWA** — obsługa jako aplikacja na telefonie (manifest, service worker)
+
+## Tech stack
+
+- **Next.js 16** (App Router, Server Actions)
+- **React 19**
+- **Supabase** (PostgreSQL, Auth, Realtime, Row-Level Security)
+- **Tailwind CSS 4**
+- **shadcn/ui** + Radix UI
+- **TypeScript 5**
+
+## Uruchomienie lokalne
+
+### Wymagania
+
+- Node.js 18+
+- Konto Supabase (lub lokalny Supabase CLI)
+
+### Instalacja
+
+```bash
+npm install
+```
+
+### Zmienne środowiskowe
+
+Utwórz plik `.env.local` na podstawie poniższego szablonu:
+
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://<twoj-projekt>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon-key>
+```
+
+### Migracje bazy danych
+
+```bash
+supabase db push
+# lub ręcznie wykonaj pliki z supabase/migrations/
+```
+
+### Uruchomienie serwera deweloperskiego
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Aplikacja dostępna pod adresem [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Struktura projektu
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/
+├── (auth)/         # Strony publiczne: logowanie, onboarding, dołączanie
+│   ├── login/
+│   ├── onboarding/
+│   └── join/[code]/
+└── (app)/          # Strony chronione (wymagają zalogowania + rodziny)
+    ├── page.tsx    # Lista zakupów
+    ├── family/     # Zarządzanie rodziną i zaproszeniami
+    └── settings/   # Ustawienia profilu i konta
+components/         # Współdzielone komponenty UI
+lib/supabase/       # Klient Supabase (server, client, middleware)
+supabase/
+├── migrations/     # Migracje bazy danych
+└── seed.sql        # Dane początkowe (kategorie, produkty)
+types/              # Typy TypeScript dla tabel Supabase
+```
 
-## Learn More
+## Baza danych
 
-To learn more about Next.js, take a look at the following resources:
+| Tabela | Opis |
+|---|---|
+| `families` | Rodziny z unikalnym kodem zaproszenia |
+| `profiles` | Profile użytkowników powiązane z rodziną |
+| `categories` | Kategorie produktów (globalne lub per-rodzina) |
+| `products` | Produkty z licznikiem użycia |
+| `shopping_items` | Pozycje na liście zakupów z realtime |
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Wszystkie tabele chronione przez Row-Level Security — użytkownik widzi tylko dane swojej rodziny.
