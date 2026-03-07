@@ -10,6 +10,7 @@ import {
   products,
   categories,
 } from '@/lib/db/schema';
+import { notifyListUpdate } from '@/lib/pusher/server';
 
 export async function toggleShoppingItem(
   itemId: string,
@@ -19,6 +20,12 @@ export async function toggleShoppingItem(
   if (!userId) {
     return { success: false, error: 'Nie jestes zalogowany' };
   }
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
 
   await db
     .update(shoppingItems)
@@ -30,6 +37,7 @@ export async function toggleShoppingItem(
     .where(eq(shoppingItems.id, itemId));
 
   revalidatePath('/');
+  if (profile?.familyId) notifyListUpdate(profile.familyId);
   return { success: true };
 }
 
@@ -203,6 +211,7 @@ export async function addProduct(
   });
 
   revalidatePath('/');
+  notifyListUpdate(profile.familyId);
   return { success: true };
 }
 
@@ -259,6 +268,7 @@ export async function classifyProduct(
   }
 
   revalidatePath('/');
+  notifyListUpdate(profile.familyId);
   return { success: true };
 }
 
@@ -291,5 +301,6 @@ export async function clearCheckedItems(): Promise<{
     );
 
   revalidatePath('/');
+  notifyListUpdate(profile.familyId);
   return { success: true };
 }

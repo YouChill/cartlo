@@ -74,6 +74,7 @@ export default async function ListPage() {
       items={serializedItems}
       categories={cats}
       memberNames={memberNames}
+      familyId={profile.familyId}
     />
   );
 }

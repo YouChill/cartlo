@@ -7,6 +7,7 @@ import { CategoryFilters } from './category-filters';
 import { AddProductInput } from './add-product-input';
 import { CheckedSection } from './checked-section';
 import { ShoppingItem } from './shopping-item';
+import { useRealtimeShoppingList } from '@/hooks/use-realtime-shopping-list';
 
 type ShoppingItemData = {
   id: string;
@@ -35,11 +36,15 @@ export function ShoppingList({
   items,
   categories,
   memberNames,
+  familyId,
 }: {
   items: ShoppingItemData[];
   categories: Category[];
   memberNames: Record<string, string>;
+  familyId: string;
 }) {
+  useRealtimeShoppingList(familyId);
+
   const [activeFilter, setActiveFilter] = useState<string | null | 'all'>(
     'all',
   );
