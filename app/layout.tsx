@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { Nunito } from 'next/font/google';
 import './globals.css';
 
@@ -12,6 +12,22 @@ const nunito = Nunito({
 export const metadata: Metadata = {
   title: 'Cartlo',
   description: 'Cartlo — rodzinna lista zakupow',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'Cartlo',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: '#4ade80',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -21,8 +37,22 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pl">
+      <head>
+        <link rel="apple-touch-icon" href="/apple-icon" />
+      </head>
       <body className={`${nunito.variable} font-sans antialiased`}>
         {children}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', () => {
+                  navigator.serviceWorker.register('/sw.js');
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

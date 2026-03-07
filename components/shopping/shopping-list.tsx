@@ -51,7 +51,7 @@ export function ShoppingList({
   if (activeItems.length === 0) {
     return (
       <div className="pb-4">
-        <div className="sticky top-0 z-20 bg-[rgba(250,250,248,0.85)] backdrop-blur-[12px]">
+        <div className="sticky top-0 z-20 bg-background/85 backdrop-blur-[12px]">
           <AddProductInput />
         </div>
         <EmptyState />
@@ -86,7 +86,7 @@ export function ShoppingList({
 
   return (
     <div className="pb-4">
-      <div className="sticky top-0 z-20 bg-[rgba(250,250,248,0.85)] backdrop-blur-[12px]">
+      <div className="sticky top-0 z-20 bg-background/85 backdrop-blur-[12px]">
         <AddProductInput />
         <CategoryFilters
           categories={categoryChips}
@@ -131,6 +131,15 @@ export function ShoppingList({
                     createdAt={item.created_at}
                     memberNames={memberNames}
                     isUncategorized={isUncategorized}
+                    categories={
+                      isUncategorized
+                        ? categories.map((c) => ({
+                            id: c.id,
+                            name: c.name,
+                            icon: c.icon,
+                          }))
+                        : undefined
+                    }
                   />
                 ))}
               </div>

@@ -206,6 +206,62 @@ export async function addProduct(
   return { success: true };
 }
 
+export async function classifyProduct(
+  itemId: string,
+  productName: string,
+  categoryId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return { success: false, error: 'Nie jestes zalogowany' };
+  }
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId) {
+    return { success: false, error: 'Nie nalezysz do rodziny' };
+  }
+
+  // Update the shopping item's category
+  await db
+    .update(shoppingItems)
+    .set({ categoryId })
+    .where(eq(shoppingItems.id, itemId));
+
+  // Upsert product — teach the system for future auto-categorization
+  const [existingProduct] = await db
+    .select({ id: products.id })
+    .from(products)
+    .where(
+      and(
+        ilike(products.name, productName),
+        or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+      ),
+    )
+    .limit(1);
+
+  if (existingProduct) {
+    await db
+      .update(products)
+      .set({ categoryId })
+      .where(eq(products.id, existingProduct.id));
+  } else {
+    await db.insert(products).values({
+      name: productName,
+      categoryId,
+      familyId: profile.familyId,
+      usageCount: 1,
+    });
+  }
+
+  revalidatePath('/');
+  return { success: true };
+}
+
 export async function clearCheckedItems(): Promise<{
   success: boolean;
   error?: string;
