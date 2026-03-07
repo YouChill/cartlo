@@ -15,6 +15,52 @@ export type UpdateProfileState = {
   success: boolean;
 };
 
+export type UpdatePasswordState = {
+  error: string | null;
+  success: boolean;
+};
+
+export async function updatePassword(
+  _prevState: UpdatePasswordState,
+  formData: FormData,
+): Promise<UpdatePasswordState> {
+  const password = (formData.get('password') as string)?.trim();
+  const confirmPassword = (formData.get('confirmPassword') as string)?.trim();
+
+  if (!password) {
+    return { error: 'Podaj nowe haslo.', success: false };
+  }
+
+  if (password.length < 6) {
+    return { error: 'Haslo musi miec minimum 6 znakow.', success: false };
+  }
+
+  if (password !== confirmPassword) {
+    return { error: 'Hasla nie sa identyczne.', success: false };
+  }
+
+  const supabase = await createClient();
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect('/login');
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+
+  if (error) {
+    return {
+      error: 'Nie udalo sie zmienic hasla. Sprobuj ponownie.',
+      success: false,
+    };
+  }
+
+  return { error: null, success: true };
+}
+
 export async function updateDisplayName(
   _prevState: UpdateProfileState,
   formData: FormData,
