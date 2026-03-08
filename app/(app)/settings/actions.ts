@@ -152,59 +152,57 @@ export async function sendInviteEmail(
     return { error: 'Nie znaleziono rodziny.', success: false };
   }
 
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (!resendApiKey) {
+  const smtpUser = process.env.SMTP_USER;
+  const smtpPass = process.env.SMTP_PASS;
+  if (!smtpUser || !smtpPass) {
     return {
       error: 'Wysylanie emaili nie jest skonfigurowane. Uzyj linku zaproszenia.',
       success: false,
     };
   }
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.VERCEL_URL
-    ? `https://${process.env.VERCEL_URL}`
-    : 'http://localhost:3000';
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ??
+    (process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : 'http://localhost:3000');
   const inviteLink = `${baseUrl}/join/${family.inviteCode}`;
 
   try {
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
+    const nodemailer = await import('nodemailer');
+    const transporter = nodemailer.default.createTransport({
+      host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
+      port: Number(process.env.SMTP_PORT ?? '587'),
+      secure: false,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
       },
-      body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL ?? 'Cartlo <onboarding@resend.dev>',
-        to: [email],
-        subject: `${profile.displayName} zaprasza Cie do rodziny "${family.name}" w Cartlo`,
-        html: `
-          <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 16px;">
-            <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dolacz do rodziny "${family.name}"</h2>
-            <p style="color: #6b6b6b; font-size: 15px; line-height: 1.6;">
-              ${profile.displayName} zaprasza Cie do wspolnej listy zakupow w <strong>Cartlo</strong>.
-            </p>
-            <a href="${inviteLink}"
-               style="display: inline-block; margin-top: 16px; padding: 12px 24px;
-                      background: #4ade80; color: #fff; font-weight: 600;
-                      text-decoration: none; border-radius: 12px; font-size: 15px;">
-              Dolacz do rodziny
-            </a>
-            <p style="margin-top: 24px; color: #9b9b9b; font-size: 13px;">
-              Lub skopiuj link: <br/>
-              <a href="${inviteLink}" style="color: #4ade80;">${inviteLink}</a>
-            </p>
-          </div>
-        `,
-      }),
     });
 
-    if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      console.error('Resend error:', body);
-      return {
-        error: 'Nie udalo sie wyslac emaila. Sprobuj ponownie.',
-        success: false,
-      };
-    }
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM ?? `Cartlo <${smtpUser}>`,
+      to: email,
+      subject: `${profile.displayName} zaprasza Cie do rodziny "${family.name}" w Cartlo`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 16px;">
+          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dolacz do rodziny "${family.name}"</h2>
+          <p style="color: #6b6b6b; font-size: 15px; line-height: 1.6;">
+            ${profile.displayName} zaprasza Cie do wspolnej listy zakupow w <strong>Cartlo</strong>.
+          </p>
+          <a href="${inviteLink}"
+             style="display: inline-block; margin-top: 16px; padding: 12px 24px;
+                    background: #4ade80; color: #fff; font-weight: 600;
+                    text-decoration: none; border-radius: 12px; font-size: 15px;">
+            Dolacz do rodziny
+          </a>
+          <p style="margin-top: 24px; color: #9b9b9b; font-size: 13px;">
+            Lub skopiuj link: <br/>
+            <a href="${inviteLink}" style="color: #4ade80;">${inviteLink}</a>
+          </p>
+        </div>
+      `,
+    });
 
     return { error: null, success: true };
   } catch (err) {
