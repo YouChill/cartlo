@@ -60,39 +60,39 @@
   --color-chart-5: var(--chart-5);
 
   /* =========================================================================
-     Cartlo custom design tokens
+     Cartlo custom design tokens (dynamic — CSS variable backed)
      ========================================================================= */
 
   /* Surface colors */
-  --color-surface: #ffffff;
-  --color-surface-raised: #f5f5f3;
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
 
   /* Custom border tokens */
-  --color-border-light: #f0f0ec;
+  --color-border-light: var(--border-light);
 
   /* Text semantic colors */
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #6b6b6b;
-  --color-text-tertiary: #9b9b9b;
-  --color-text-disabled: #c4c4c4;
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-disabled);
 
   /* Mint accent scale */
-  --color-mint-50: #f0fdf6;
-  --color-mint-100: #dcfce8;
-  --color-mint-200: #bbf7d0;
-  --color-mint-300: #86efac;
-  --color-mint-400: #4ade80;
-  --color-mint-500: #22c55e;
-  --color-mint-600: #16a34a;
+  --color-mint-50: var(--mint-50);
+  --color-mint-100: var(--mint-100);
+  --color-mint-200: var(--mint-200);
+  --color-mint-300: var(--mint-300);
+  --color-mint-400: var(--mint-400);
+  --color-mint-500: var(--mint-500);
+  --color-mint-600: var(--mint-600);
 
   /* Status colors */
-  --color-warning-bg: #fef3c7;
-  --color-warning-text: #d97706;
-  --color-warning-border: #fcd34d;
-  --color-error-bg: #fee2e2;
-  --color-error-text: #dc2626;
-  --color-info-bg: #e0f2fe;
-  --color-info-text: #0284c7;
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-text: var(--warning-text);
+  --color-warning-border: var(--warning-border);
+  --color-error-bg: var(--error-bg);
+  --color-error-text: var(--error-text);
+  --color-info-bg: var(--info-bg);
+  --color-info-text: var(--info-text);
 
   /* Shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -156,6 +156,29 @@
   --sidebar-border: #e8e8e4;
   --sidebar-ring: #4ade80;
 
+  /* Cartlo custom tokens — light mode values */
+  --surface: #ffffff;
+  --surface-raised: #f5f5f3;
+  --border-light: #f0f0ec;
+  --text-primary: #1a1a1a;
+  --text-secondary: #6b6b6b;
+  --text-tertiary: #9b9b9b;
+  --text-disabled: #c4c4c4;
+  --mint-50: #f0fdf6;
+  --mint-100: #dcfce8;
+  --mint-200: #bbf7d0;
+  --mint-300: #86efac;
+  --mint-400: #4ade80;
+  --mint-500: #22c55e;
+  --mint-600: #16a34a;
+  --warning-bg: #fef3c7;
+  --warning-text: #d97706;
+  --warning-border: #fcd34d;
+  --error-bg: #fee2e2;
+  --error-text: #dc2626;
+  --info-bg: #e0f2fe;
+  --info-text: #0284c7;
+
   /* Cartlo spacing scale */
   --space-1: 4px;
   --space-2: 8px;
@@ -166,6 +189,67 @@
   --space-8: 32px;
   --space-10: 40px;
   --space-12: 48px;
+}
+
+.dark {
+  --background: #121212;
+  --foreground: #e5e5e5;
+  --card: #1e1e1e;
+  --card-foreground: #e5e5e5;
+  --popover: #1e1e1e;
+  --popover-foreground: #e5e5e5;
+  --primary: #4ade80;
+  --primary-foreground: #121212;
+  --secondary: #2a2a2a;
+  --secondary-foreground: #e5e5e5;
+  --muted: #2a2a2a;
+  --muted-foreground: #a1a1a1;
+  --accent: #1a2e22;
+  --accent-foreground: #4ade80;
+  --destructive: #ef4444;
+  --border: #2e2e2e;
+  --input: #2e2e2e;
+  --ring: #4ade80;
+
+  /* Charts */
+  --chart-1: #4ade80;
+  --chart-2: #86efac;
+  --chart-3: #22c55e;
+  --chart-4: #bbf7d0;
+  --chart-5: #16a34a;
+
+  /* Sidebar */
+  --sidebar: #1e1e1e;
+  --sidebar-foreground: #e5e5e5;
+  --sidebar-primary: #4ade80;
+  --sidebar-primary-foreground: #121212;
+  --sidebar-accent: #1a2e22;
+  --sidebar-accent-foreground: #4ade80;
+  --sidebar-border: #2e2e2e;
+  --sidebar-ring: #4ade80;
+
+  /* Cartlo custom tokens — dark mode values */
+  --surface: #1e1e1e;
+  --surface-raised: #2a2a2a;
+  --border-light: #333333;
+  --text-primary: #e5e5e5;
+  --text-secondary: #a1a1a1;
+  --text-tertiary: #737373;
+  --text-disabled: #525252;
+  --mint-50: #0a1f13;
+  --mint-100: #0f2e1b;
+  --mint-200: #164a2c;
+  --mint-300: #22803e;
+  --mint-400: #4ade80;
+  --mint-500: #22c55e;
+  --mint-600: #86efac;
+  --warning-bg: #422006;
+  --warning-text: #fbbf24;
+  --warning-border: #78350f;
+  --error-bg: #450a0a;
+  --error-text: #f87171;
+  --info-bg: #0c4a6e;
+  --info-text: #7dd3fc;
 }
 
 @layer base {
