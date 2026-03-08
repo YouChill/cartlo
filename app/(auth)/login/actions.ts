@@ -17,6 +17,7 @@ export async function login(
 ): Promise<AuthFormState> {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
+  const joinCode = (formData.get('joinCode') as string) || null;
 
   if (!email || !password) {
     return { error: 'Wypelnij wszystkie pola.' };
@@ -30,6 +31,11 @@ export async function login(
     });
   } catch {
     return { error: 'Nieprawidlowy email lub haslo.' };
+  }
+
+  // If there's a join code, redirect to the join page
+  if (joinCode) {
+    redirect(`/join/${joinCode}`);
   }
 
   // Check if user has a family
@@ -63,6 +69,7 @@ export async function register(
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const confirmPassword = formData.get('confirmPassword') as string;
+  const joinCode = (formData.get('joinCode') as string) || null;
 
   if (!email || !password || !confirmPassword) {
     return { error: 'Wypelnij wszystkie pola.' };
@@ -121,6 +128,11 @@ export async function register(
     });
   } catch {
     // Sign in might throw on redirect, that's ok
+  }
+
+  // If there's a join code, redirect to the join page
+  if (joinCode) {
+    redirect(`/join/${joinCode}`);
   }
 
   redirect('/onboarding');

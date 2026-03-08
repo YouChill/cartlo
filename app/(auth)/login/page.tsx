@@ -4,7 +4,13 @@ export const metadata = {
   title: 'Zaloguj sie — Cartlo',
 };
 
-export default function LoginPage() {
+type Props = {
+  searchParams: Promise<{ join?: string }>;
+};
+
+export default async function LoginPage({ searchParams }: Props) {
+  const { join } = await searchParams;
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4">
       <div className="w-full max-w-sm">
@@ -32,7 +38,7 @@ export default function LoginPage() {
             Rodzinna lista zakupow
           </p>
         </div>
-        <LoginForm />
+        <LoginForm joinCode={join} />
       </div>
     </div>
   );

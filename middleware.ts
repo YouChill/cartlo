@@ -20,10 +20,12 @@ export default auth((req) => {
     return NextResponse.redirect(url);
   }
 
-  // Logged in — don't let them visit /login
+  // Logged in — don't let them visit /login (preserve join redirect)
   if (isLoggedIn && pathname === '/login') {
     const url = req.nextUrl.clone();
-    url.pathname = '/';
+    const joinCode = req.nextUrl.searchParams.get('join');
+    url.pathname = joinCode ? `/join/${joinCode}` : '/';
+    url.search = '';
     return NextResponse.redirect(url);
   }
 
