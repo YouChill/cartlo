@@ -172,7 +172,13 @@ export async function addTemplateItem(
   templateId: string,
   productName: string,
   categoryId?: string | null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  category_id?: string | null;
+  category_name?: string | null;
+  category_icon?: string | null;
+}> {
   const trimmed = productName.trim();
   if (!trimmed)
     return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
@@ -207,6 +213,21 @@ export async function addTemplateItem(
     }
   }
 
+  // Resolve category name and icon for the client
+  let resolvedCategoryName: string | null = null;
+  let resolvedCategoryIcon: string | null = null;
+  if (resolvedCategoryId) {
+    const [cat] = await db
+      .select({ name: categories.name, icon: categories.icon })
+      .from(categories)
+      .where(eq(categories.id, resolvedCategoryId))
+      .limit(1);
+    if (cat) {
+      resolvedCategoryName = cat.name;
+      resolvedCategoryIcon = cat.icon;
+    }
+  }
+
   const existingItems = await db
     .select({ sortOrder: templateItems.sortOrder })
     .from(templateItems)
@@ -224,7 +245,12 @@ export async function addTemplateItem(
   });
 
   revalidatePath('/templates');
-  return { success: true };
+  return {
+    success: true,
+    category_id: resolvedCategoryId,
+    category_name: resolvedCategoryName,
+    category_icon: resolvedCategoryIcon,
+  };
 }
 
 export async function removeTemplateItem(

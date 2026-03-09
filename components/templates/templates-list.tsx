@@ -577,9 +577,9 @@ function AddTemplateItemInput({
         onAdded({
           id: tempId,
           product_name: trimmed,
-          category_id: categoryId ?? null,
-          category_name: categoryName ?? null,
-          category_icon: categoryIcon ?? null,
+          category_id: result.category_id ?? categoryId ?? null,
+          category_name: result.category_name ?? categoryName ?? null,
+          category_icon: result.category_icon ?? categoryIcon ?? null,
           sort_order: 0,
         });
         setValue('');
