@@ -595,7 +595,7 @@ function AddTemplateItemInput({
       return;
     }
     if (selectedIndex === suggestions.length && value.trim()) {
-      handleAdd(value.trim(), null);
+      handleAdd(value.trim());
       return;
     }
     handleAdd(value);
@@ -695,7 +695,7 @@ function AddTemplateItemInput({
             <div
               role="option"
               aria-selected={selectedIndex === suggestions.length}
-              onClick={() => handleAdd(value.trim(), null)}
+              onClick={() => handleAdd(value.trim())}
               className={`flex cursor-pointer items-center gap-2 border-t border-border-light px-3 py-2.5 ${
                 selectedIndex === suggestions.length
                   ? 'bg-mint-200'
