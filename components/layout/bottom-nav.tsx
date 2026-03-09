@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ShoppingCart, Users, Settings } from 'lucide-react';
+import { ShoppingCart, Users, Settings, LayoutTemplate } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { NAV_LINKS } from './nav-links';
 
@@ -10,6 +10,7 @@ const ICON_MAP = {
   ShoppingCart,
   Users,
   Settings,
+  LayoutTemplate,
 } as const;
 
 export function BottomNav() {

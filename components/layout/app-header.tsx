@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 
 const PAGE_TITLES: Record<string, string> = {
   '/': 'Lista zakupow',
+  '/templates': 'Szablony',
   '/family': 'Rodzina',
   '/settings': 'Ustawienia',
 };

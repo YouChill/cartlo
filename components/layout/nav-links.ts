@@ -5,6 +5,11 @@ export const NAV_LINKS = [
     icon: 'ShoppingCart',
   },
   {
+    href: '/templates',
+    label: 'Szablony',
+    icon: 'LayoutTemplate',
+  },
+  {
     href: '/family',
     label: 'Rodzina',
     icon: 'Users',

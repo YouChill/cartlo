@@ -73,6 +73,32 @@ export const products = pgTable(
   ],
 );
 
+export const templates = pgTable('templates', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  familyId: uuid('family_id')
+    .notNull()
+    .references(() => families.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  createdBy: uuid('created_by')
+    .notNull()
+    .references(() => profiles.id, { onDelete: 'cascade' }),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const templateItems = pgTable('template_items', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  templateId: uuid('template_id')
+    .notNull()
+    .references(() => templates.id, { onDelete: 'cascade' }),
+  productName: text('product_name').notNull(),
+  categoryId: uuid('category_id').references(() => categories.id, {
+    onDelete: 'set null',
+  }),
+  sortOrder: integer('sort_order').notNull().default(0),
+});
+
 export const shoppingItems = pgTable(
   'shopping_items',
   {
