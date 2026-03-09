@@ -314,7 +314,7 @@ function TemplateCard({
   };
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+    <div className="rounded-2xl border border-border bg-surface shadow-sm">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3">
         {isRenaming ? (
