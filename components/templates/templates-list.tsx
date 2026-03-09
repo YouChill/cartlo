@@ -439,7 +439,7 @@ function TemplateCard({
           isExpanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
         }`}
       >
-        <div className="overflow-hidden">
+        <div className={isExpanded ? 'overflow-visible' : 'overflow-hidden'}>
           <div className="border-t border-border-light">
             {template.items.length > 0 && (
               <div>
