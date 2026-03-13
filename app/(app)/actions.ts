@@ -255,23 +255,31 @@ export async function addProduct(
       categoryId = embeddingCategoryId;
 
       // Add as new product (with embedding if available)
-      const [newProduct] = await db
-        .insert(products)
-        .values({
-          name: trimmed,
-          categoryId,
-          familyId: profile.familyId,
-          usageCount: 1,
-        })
-        .returning({ id: products.id });
+      try {
+        const [newProduct] = await db
+          .insert(products)
+          .values({
+            name: trimmed,
+            categoryId,
+            familyId: profile.familyId,
+            usageCount: 1,
+          })
+          .onConflictDoUpdate({
+            target: [products.name, products.familyId],
+            set: { categoryId, usageCount: sql`${products.usageCount} + 1` },
+          })
+          .returning({ id: products.id });
 
-      // Save embedding for the new product (non-blocking)
-      if (isEmbeddingConfigured() && newProduct) {
-        if (productEmbedding) {
-          saveProductEmbedding(newProduct.id, productEmbedding).catch(() => {});
-        } else {
-          upsertProductEmbedding(newProduct.id, trimmed).catch(() => {});
+        // Save embedding for the new product (non-blocking)
+        if (isEmbeddingConfigured() && newProduct) {
+          if (productEmbedding) {
+            saveProductEmbedding(newProduct.id, productEmbedding).catch(() => {});
+          } else {
+            upsertProductEmbedding(newProduct.id, trimmed).catch(() => {});
+          }
         }
+      } catch {
+        // Product upsert failed — continue with shopping item insertion
       }
     }
   }
@@ -338,19 +346,28 @@ export async function classifyProduct(
       upsertProductEmbedding(existingProduct.id, productName).catch(() => {});
     }
   } else {
-    const [newProduct] = await db
-      .insert(products)
-      .values({
-        name: productName,
-        categoryId,
-        familyId: profile.familyId,
-        usageCount: 1,
-      })
-      .returning({ id: products.id });
+    try {
+      const [newProduct] = await db
+        .insert(products)
+        .values({
+          name: productName,
+          categoryId,
+          familyId: profile.familyId,
+          usageCount: 1,
+        })
+        .onConflictDoUpdate({
+          target: [products.name, products.familyId],
+          set: { categoryId },
+        })
+        .returning({ id: products.id });
 
-    // Generate embedding for new product (non-blocking)
-    if (isEmbeddingConfigured() && newProduct) {
-      upsertProductEmbedding(newProduct.id, productName).catch(() => {});
+      // Generate embedding for new product (non-blocking)
+      if (isEmbeddingConfigured() && newProduct) {
+        upsertProductEmbedding(newProduct.id, productName).catch(() => {});
+      }
+    } catch {
+      // Product upsert failed — classification of the shopping item
+      // already succeeded above, so we can safely continue.
     }
   }
 
