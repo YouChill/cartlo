@@ -30,6 +30,7 @@ import {
   renameTemplate,
   addTemplateItem,
   removeTemplateItem,
+  updateTemplateItem,
   useTemplate,
 } from '@/app/(app)/templates/actions';
 import { searchProducts, type ProductSuggestion } from '@/app/(app)/actions';
@@ -114,6 +115,21 @@ export function TemplatesList({
     );
   };
 
+  const handleEditItem = (templateId: string, itemId: string, updatedItem: Partial<TemplateItemData>) => {
+    setTemplatesList((prev) =>
+      prev.map((t) =>
+        t.id === templateId
+          ? {
+              ...t,
+              items: t.items.map((i) =>
+                i.id === itemId ? { ...i, ...updatedItem } : i,
+              ),
+            }
+          : t,
+      ),
+    );
+  };
+
   if (templatesList.length === 0) {
     return (
       <div className="pb-4">
@@ -181,6 +197,7 @@ export function TemplatesList({
             onRename={(newName) => handleRenameTemplate(template.id, newName)}
             onAddItem={(item) => handleAddItem(template.id, item)}
             onRemoveItem={(itemId) => handleRemoveItem(template.id, itemId)}
+            onEditItem={(itemId, updatedItem) => handleEditItem(template.id, itemId, updatedItem)}
           />
         ))}
       </div>
@@ -264,6 +281,7 @@ function TemplateCard({
   onRename,
   onAddItem,
   onRemoveItem,
+  onEditItem,
 }: {
   template: TemplateData;
   categories: Category[];
@@ -271,6 +289,7 @@ function TemplateCard({
   onRename: (newName: string) => void;
   onAddItem: (item: TemplateItemData) => void;
   onRemoveItem: (itemId: string) => void;
+  onEditItem: (itemId: string, updatedItem: Partial<TemplateItemData>) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -448,6 +467,7 @@ function TemplateCard({
                     key={item.id}
                     item={item}
                     onRemove={() => onRemoveItem(item.id)}
+                    onEdit={(updatedItem) => onEditItem(item.id, updatedItem)}
                   />
                 ))}
               </div>
@@ -468,16 +488,36 @@ function TemplateCard({
 function TemplateItemRow({
   item,
   onRemove,
+  onEdit,
 }: {
   item: TemplateItemData;
   onRemove: () => void;
+  onEdit: (updatedItem: Partial<TemplateItemData>) => void;
 }) {
   const [isPending, startTransition] = useTransition();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(item.product_name);
 
   const handleRemove = () => {
     startTransition(async () => {
       await removeTemplateItem(item.id);
       onRemove();
+    });
+  };
+
+  const handleEditSubmit = () => {
+    const trimmed = editValue.trim();
+    if (!trimmed || trimmed === item.product_name) {
+      setIsEditing(false);
+      setEditValue(item.product_name);
+      return;
+    }
+    startTransition(async () => {
+      const result = await updateTemplateItem(item.id, trimmed);
+      if (result.success) {
+        onEdit({ product_name: trimmed });
+      }
+      setIsEditing(false);
     });
   };
 
@@ -489,24 +529,59 @@ function TemplateItemRow({
         isPending ? 'opacity-50' : ''
       }`}
     >
-      <span className="flex-1 text-sm text-text-primary">
-        {item.product_name}
-      </span>
-      {item.category_name && (
+      {isEditing ? (
+        <input
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') handleEditSubmit();
+            if (e.key === 'Escape') {
+              setIsEditing(false);
+              setEditValue(item.product_name);
+            }
+          }}
+          onBlur={handleEditSubmit}
+          autoFocus
+          disabled={isPending}
+          className="flex-1 rounded-lg border border-mint-300 bg-transparent px-2 py-0.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-mint-400"
+        />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsEditing(true)}
+          className="flex-1 text-left text-sm text-text-primary hover:text-mint-600 transition-colors"
+        >
+          {item.product_name}
+        </button>
+      )}
+      {!isEditing && item.category_name && (
         <span className="flex shrink-0 items-center gap-1 text-xs text-text-tertiary">
           {Icon && <Icon size={12} />}
           {item.category_name}
         </span>
       )}
-      <button
-        type="button"
-        onClick={handleRemove}
-        disabled={isPending}
-        className="shrink-0 text-text-tertiary transition-colors hover:text-error-text disabled:opacity-30"
-        aria-label="Usun produkt z szablonu"
-      >
-        <X size={16} />
-      </button>
+      {isEditing ? (
+        <button
+          type="button"
+          onClick={handleEditSubmit}
+          disabled={isPending}
+          className="shrink-0 text-mint-500 transition-opacity hover:opacity-70"
+          aria-label="Zapisz nazwe produktu"
+        >
+          <Check size={16} />
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={handleRemove}
+          disabled={isPending}
+          className="shrink-0 text-text-tertiary transition-colors hover:text-error-text disabled:opacity-30"
+          aria-label="Usun produkt z szablonu"
+        >
+          <X size={16} />
+        </button>
+      )}
     </div>
   );
 }
@@ -572,10 +647,9 @@ function AddTemplateItemInput({
     setSuggestions([]);
     startTransition(async () => {
       const result = await addTemplateItem(templateId, trimmed, categoryId);
-      if (result.success) {
-        const tempId = `temp-${Date.now()}`;
+      if (result.success && result.id) {
         onAdded({
-          id: tempId,
+          id: result.id,
           product_name: trimmed,
           category_id: categoryId ?? null,
           category_name: categoryName ?? null,

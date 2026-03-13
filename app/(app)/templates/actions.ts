@@ -172,7 +172,7 @@ export async function addTemplateItem(
   templateId: string,
   productName: string,
   categoryId?: string | null,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; id?: string }> {
   const trimmed = productName.trim();
   if (!trimmed)
     return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
@@ -216,15 +216,15 @@ export async function addTemplateItem(
 
   const nextSortOrder = (existingItems[0]?.sortOrder ?? -1) + 1;
 
-  await db.insert(templateItems).values({
+  const [inserted] = await db.insert(templateItems).values({
     templateId,
     productName: trimmed,
     categoryId: resolvedCategoryId,
     sortOrder: nextSortOrder,
-  });
+  }).returning({ id: templateItems.id });
 
   revalidatePath('/templates');
-  return { success: true };
+  return { success: true, id: inserted.id };
 }
 
 export async function removeTemplateItem(
@@ -234,6 +234,57 @@ export async function removeTemplateItem(
   if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
 
   await db.delete(templateItems).where(eq(templateItems.id, itemId));
+
+  revalidatePath('/templates');
+  return { success: true };
+}
+
+export async function updateTemplateItem(
+  itemId: string,
+  productName: string,
+  categoryId?: string | null,
+): Promise<{ success: boolean; error?: string }> {
+  const trimmed = productName.trim();
+  if (!trimmed)
+    return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
+
+  const userId = await getCurrentUserId();
+  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+
+  let resolvedCategoryId = categoryId ?? null;
+
+  if (categoryId === undefined) {
+    const [profile] = await db
+      .select({ familyId: profiles.familyId })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+
+    if (profile?.familyId) {
+      const [knownProduct] = await db
+        .select({ categoryId: products.categoryId })
+        .from(products)
+        .where(
+          and(
+            ilike(products.name, trimmed),
+            or(
+              isNull(products.familyId),
+              eq(products.familyId, profile.familyId),
+            ),
+          ),
+        )
+        .limit(1);
+      resolvedCategoryId = knownProduct?.categoryId ?? null;
+    }
+  }
+
+  await db
+    .update(templateItems)
+    .set({
+      productName: trimmed,
+      categoryId: resolvedCategoryId,
+    })
+    .where(eq(templateItems.id, itemId));
 
   revalidatePath('/templates');
   return { success: true };
