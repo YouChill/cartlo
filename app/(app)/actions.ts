@@ -4,13 +4,15 @@ import { revalidatePath } from 'next/cache';
 import { eq, and, or, isNull, ilike, desc, sql } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import {
-  profiles,
-  shoppingItems,
-  products,
-  categories,
-} from '@/lib/db/schema';
+import { profiles, shoppingItems, products, categories } from '@/lib/db/schema';
 import { notifyListUpdate } from '@/lib/pusher/server';
+import {
+  generateEmbedding,
+  findSimilarProducts,
+  saveProductEmbedding,
+  upsertProductEmbedding,
+  isEmbeddingConfigured,
+} from '@/lib/embeddings';
 
 export async function toggleShoppingItem(
   itemId: string,
@@ -84,11 +86,48 @@ export async function searchProducts(
     .orderBy(desc(products.usageCount))
     .limit(8);
 
-  if (matchedProducts.length === 0) return [];
+  // If ILIKE returned fewer than 3 results, supplement with semantic search
+  let semanticProducts: typeof matchedProducts = [];
+  if (matchedProducts.length < 3 && isEmbeddingConfigured()) {
+    try {
+      const queryEmbedding = await generateEmbedding(trimmed);
+      const similar = await findSimilarProducts(
+        queryEmbedding,
+        profile.familyId,
+        { threshold: 0.7, limit: 8 - matchedProducts.length },
+      );
+
+      if (similar.length > 0) {
+        // Filter out products already found by ILIKE
+        const existingIds = new Set(matchedProducts.map((p) => p.id));
+        const newSimilar = similar.filter((s) => !existingIds.has(s.id));
+
+        if (newSimilar.length > 0) {
+          // Fetch full product info for semantic results
+          const semanticIds = newSimilar.map((s) => s.id);
+          semanticProducts = await db
+            .select({
+              id: products.id,
+              name: products.name,
+              categoryId: products.categoryId,
+              usageCount: products.usageCount,
+            })
+            .from(products)
+            .where(sql`${products.id} IN ${semanticIds}`);
+        }
+      }
+    } catch {
+      // Semantic search failed — return ILIKE results only
+    }
+  }
+
+  const allProducts = [...matchedProducts, ...semanticProducts];
+
+  if (allProducts.length === 0) return [];
 
   // Fetch category names for matched products
   const categoryIds = [
-    ...new Set(matchedProducts.map((p) => p.categoryId).filter(Boolean)),
+    ...new Set(allProducts.map((p) => p.categoryId).filter(Boolean)),
   ] as string[];
 
   const categoryMap: Record<string, { name: string; icon: string }> = {};
@@ -107,7 +146,7 @@ export async function searchProducts(
     });
   }
 
-  return matchedProducts.map((p) => ({
+  return allProducts.map((p) => ({
     id: p.id,
     name: p.name,
     category_id: p.categoryId,
@@ -192,13 +231,48 @@ export async function addProduct(
         .set({ usageCount: knownProduct.usageCount + 1 })
         .where(eq(products.id, knownProduct.id));
     } else {
-      // Add as new product (uncategorized)
-      await db.insert(products).values({
-        name: trimmed,
-        categoryId: null,
-        familyId: profile.familyId,
-        usageCount: 1,
-      });
+      // Product not found by exact match — try semantic search via embeddings
+      let embeddingCategoryId: string | null = null;
+      let productEmbedding: number[] | null = null;
+
+      if (isEmbeddingConfigured()) {
+        try {
+          productEmbedding = await generateEmbedding(trimmed);
+          const similar = await findSimilarProducts(
+            productEmbedding,
+            profile.familyId,
+            { threshold: 0.8, limit: 1, requireCategory: true },
+          );
+
+          if (similar.length > 0 && similar[0].categoryId) {
+            embeddingCategoryId = similar[0].categoryId;
+          }
+        } catch {
+          // Embedding generation failed — fall back to uncategorized
+        }
+      }
+
+      categoryId = embeddingCategoryId;
+
+      // Add as new product (with embedding if available)
+      const [newProduct] = await db
+        .insert(products)
+        .values({
+          name: trimmed,
+          categoryId,
+          familyId: profile.familyId,
+          usageCount: 1,
+        })
+        .returning({ id: products.id });
+
+      // Save embedding for the new product (non-blocking)
+      if (isEmbeddingConfigured() && newProduct) {
+        if (productEmbedding) {
+          saveProductEmbedding(newProduct.id, productEmbedding).catch(() => {});
+        } else {
+          upsertProductEmbedding(newProduct.id, trimmed).catch(() => {});
+        }
+      }
     }
   }
 
@@ -258,13 +332,26 @@ export async function classifyProduct(
       .update(products)
       .set({ categoryId })
       .where(eq(products.id, existingProduct.id));
+
+    // Update embedding for this product (non-blocking)
+    if (isEmbeddingConfigured()) {
+      upsertProductEmbedding(existingProduct.id, productName).catch(() => {});
+    }
   } else {
-    await db.insert(products).values({
-      name: productName,
-      categoryId,
-      familyId: profile.familyId,
-      usageCount: 1,
-    });
+    const [newProduct] = await db
+      .insert(products)
+      .values({
+        name: productName,
+        categoryId,
+        familyId: profile.familyId,
+        usageCount: 1,
+      })
+      .returning({ id: products.id });
+
+    // Generate embedding for new product (non-blocking)
+    if (isEmbeddingConfigured() && newProduct) {
+      upsertProductEmbedding(newProduct.id, productName).catch(() => {});
+    }
   }
 
   revalidatePath('/');
