@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Cartlo — Seed Data
--- 13 default categories + ~130 global products
+-- 16 default categories + ~160 global products
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -17,10 +17,13 @@ INSERT INTO public.categories (id, name, icon, sort_order, is_default, family_id
   ('a0000000-0000-0000-0000-000000000007', 'Napoje',               'CupSoda',     7,  true, NULL),
   ('a0000000-0000-0000-0000-000000000008', 'Slodycze i przekaski', 'Cookie',      8,  true, NULL),
   ('a0000000-0000-0000-0000-000000000009', 'Przyprawy i sosy',    'FlaskRound',  9,  true, NULL),
-  ('a0000000-0000-0000-0000-000000000010', 'Chemia domowa',        'SprayConical', 10, true, NULL),
-  ('a0000000-0000-0000-0000-000000000011', 'Higiena',              'ShowerHead',  11, true, NULL),
-  ('a0000000-0000-0000-0000-000000000012', 'Artykuly domowe',      'Home',        12, true, NULL),
-  ('a0000000-0000-0000-0000-000000000013', 'Inne',                 'Package',     13, true, NULL);
+  ('a0000000-0000-0000-0000-000000000014', 'Oleje',                'Droplets',    10, true, NULL),
+  ('a0000000-0000-0000-0000-000000000015', 'Maki i sypkie skladniki', 'Wheat',   11, true, NULL),
+  ('a0000000-0000-0000-0000-000000000016', 'Kasze i makarony',    'Bean',        12, true, NULL),
+  ('a0000000-0000-0000-0000-000000000010', 'Chemia domowa',        'SprayConical', 13, true, NULL),
+  ('a0000000-0000-0000-0000-000000000011', 'Higiena',              'ShowerHead',  14, true, NULL),
+  ('a0000000-0000-0000-0000-000000000012', 'Artykuly domowe',      'Home',        15, true, NULL),
+  ('a0000000-0000-0000-0000-000000000013', 'Inne',                 'Package',     16, true, NULL);
 
 -- -----------------------------------------------------------------------------
 -- Products (global, family_id = NULL)
@@ -127,23 +130,59 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Popcorn',          'a0000000-0000-0000-0000-000000000008', NULL, 0),
   ('Chałwa',           'a0000000-0000-0000-0000-000000000008', NULL, 0),
 
--- Przyprawy i sosy
+-- Przyprawy i sosy (oleje, mąki, kasze i makarony przeniesione do osobnych kategorii)
   ('Sol',              'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Pieprz',           'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Ketchup',          'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Musztarda',        'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Majonez',          'a0000000-0000-0000-0000-000000000009', NULL, 0),
-  ('Oliwa z oliwek',   'a0000000-0000-0000-0000-000000000009', NULL, 0),
-  ('Olej rzepakowy',   'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Ocet',             'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Sos sojowy',       'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Papryka mielona',  'a0000000-0000-0000-0000-000000000009', NULL, 0),
-  ('Cukier',           'a0000000-0000-0000-0000-000000000009', NULL, 0),
-  ('Maka',             'a0000000-0000-0000-0000-000000000009', NULL, 0),
-  ('Ryz',              'a0000000-0000-0000-0000-000000000009', NULL, 0),
-  ('Makaron',          'a0000000-0000-0000-0000-000000000009', NULL, 0),
-  ('Kasza',            'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Passata pomidorowa','a0000000-0000-0000-0000-000000000009', NULL, 0),
+
+-- Oleje
+  ('Oliwa z oliwek',   'a0000000-0000-0000-0000-000000000014', NULL, 0),
+  ('Olej rzepakowy',   'a0000000-0000-0000-0000-000000000014', NULL, 0),
+  ('Olej kokosowy',    'a0000000-0000-0000-0000-000000000014', NULL, 0),
+  ('Olej slonecznikowy','a0000000-0000-0000-0000-000000000014', NULL, 0),
+  ('Olej sezamowy',    'a0000000-0000-0000-0000-000000000014', NULL, 0),
+  ('Olej lniany',      'a0000000-0000-0000-0000-000000000014', NULL, 0),
+  ('Maslo klarowane',  'a0000000-0000-0000-0000-000000000014', NULL, 0),
+  ('Olej z pestek winogron', 'a0000000-0000-0000-0000-000000000014', NULL, 0),
+
+-- Maki i sypkie skladniki
+  ('Maka pszenna',     'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Maka razowa',      'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Maka ziemniaczana','a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Maka kukurydziana','a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Skrobia kukurydziana','a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Cukier',           'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Cukier puder',     'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Cukier trzcinowy', 'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Proszek do pieczenia','a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Soda oczyszczona', 'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Drozdze',          'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Platki owsiane',   'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Bulka tarta',      'a0000000-0000-0000-0000-000000000015', NULL, 0),
+  ('Kakao',            'a0000000-0000-0000-0000-000000000015', NULL, 0),
+
+-- Kasze i makarony
+  ('Ryz bialy',        'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Ryz basmati',      'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Ryz jasminowy',    'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Ryz brazowy',      'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Kasza gryczana',   'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Kasza jaglana',    'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Kasza jeczmienna', 'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Kasza manna',      'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Kuskus',           'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Makaron spaghetti','a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Makaron penne',    'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Makaron swiderki', 'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Makaron ryzowy',   'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Makaron lasagne',  'a0000000-0000-0000-0000-000000000016', NULL, 0),
+  ('Makaron nitki',    'a0000000-0000-0000-0000-000000000016', NULL, 0),
 
 -- Chemia domowa
   ('Plyn do naczyn',   'a0000000-0000-0000-0000-000000000010', NULL, 0),
