@@ -36,7 +36,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pl" suppressHydrationWarning>
+    <html lang="pl" className="overflow-x-hidden" suppressHydrationWarning>
       <head>
         <link rel="apple-touch-icon" href="/apple-icon" />
         {/* Anti-flash: apply dark class before first paint */}
@@ -46,7 +46,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${nunito.variable} font-sans antialiased`}>
+      <body className={`${nunito.variable} overflow-x-hidden font-sans antialiased`}>
         {children}
         <script
           dangerouslySetInnerHTML={{
