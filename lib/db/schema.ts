@@ -8,7 +8,32 @@ import {
   numeric,
   uniqueIndex,
   index,
+  customType,
 } from 'drizzle-orm/pg-core';
+
+// ---------------------------------------------------------------------------
+// Custom pgvector type for embeddings
+// ---------------------------------------------------------------------------
+
+const vector = customType<{
+  data: number[];
+  driverData: string;
+  config: { dimensions: number };
+}>({
+  dataType(config) {
+    return `vector(${config?.dimensions ?? 1536})`;
+  },
+  fromDriver(value: string): number[] {
+    // pgvector returns vectors as '[0.1,0.2,...]' strings
+    return value
+      .slice(1, -1)
+      .split(',')
+      .map((v) => parseFloat(v));
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(',')}]`;
+  },
+});
 
 // ---------------------------------------------------------------------------
 // Tables
@@ -68,6 +93,7 @@ export const products = pgTable(
       onDelete: 'cascade',
     }),
     usageCount: integer('usage_count').notNull().default(0),
+    embedding: vector('embedding', { dimensions: 1536 }),
   },
   (table) => [
     uniqueIndex('products_name_family_idx').on(table.name, table.familyId),
