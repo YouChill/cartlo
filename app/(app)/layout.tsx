@@ -24,7 +24,7 @@ export default async function AppLayout({
   if (!profile?.familyId) redirect('/onboarding');
 
   return (
-    <div className="flex min-h-screen bg-[var(--background)]">
+    <div className="flex min-h-dvh bg-[var(--background)]">
       {/* Desktop sidebar */}
       <SidebarNav />
 
@@ -32,7 +32,7 @@ export default async function AppLayout({
       <div className="flex flex-1 flex-col">
         <AppHeader displayName={profile.displayName} />
 
-        <main className="flex-1 pb-20 lg:pb-0">
+        <main className="flex-1 pb-[calc(5rem+env(safe-area-inset-bottom,0px))] lg:pb-0">
           <div className="mx-auto max-w-lg lg:max-w-2xl">{children}</div>
         </main>
       </div>
