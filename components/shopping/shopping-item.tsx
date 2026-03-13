@@ -1,6 +1,6 @@
 'use client';
 
-import { useOptimistic, useTransition } from 'react';
+import { useOptimistic, useState, useTransition } from 'react';
 import { Check } from 'lucide-react';
 import { toggleShoppingItem, classifyProduct } from '@/app/(app)/actions';
 import { CategoryPicker } from './category-picker';
@@ -55,6 +55,7 @@ export function ShoppingItem({
 }: ShoppingItemProps) {
   const [isPending, startTransition] = useTransition();
   const [optimisticChecked, setOptimisticChecked] = useOptimistic(isChecked);
+  const [classifyError, setClassifyError] = useState<string | null>(null);
 
   const handleToggle = () => {
     const newChecked = !optimisticChecked;
@@ -65,8 +66,16 @@ export function ShoppingItem({
   };
 
   const handleClassify = (categoryId: string) => {
+    setClassifyError(null);
     startTransition(async () => {
-      await classifyProduct(id, productName, categoryId);
+      try {
+        const result = await classifyProduct(id, productName, categoryId);
+        if (!result.success) {
+          setClassifyError(result.error ?? 'Nie udalo sie przypisac kategorii');
+        }
+      } catch {
+        setClassifyError('Wystapil blad przy przypisywaniu kategorii');
+      }
     });
   };
 
@@ -136,6 +145,9 @@ export function ShoppingItem({
       {isUncategorized && categories && categories.length > 0 && (
         <div className="pb-3 pl-[52px] pr-4">
           <CategoryPicker categories={categories} onSelect={handleClassify} />
+          {classifyError && (
+            <p className="mt-1 text-xs text-error-text">{classifyError}</p>
+          )}
         </div>
       )}
     </div>
