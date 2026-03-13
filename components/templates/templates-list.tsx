@@ -11,7 +11,30 @@ import {
   ShoppingCart,
   Pencil,
   Check,
+  Copy,
+  ArrowUpDown,
+  GripVertical,
+  Minus,
 } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DraggableAttributes,
+} from '@dnd-kit/core';
+import type { SyntheticListenerMap } from '@dnd-kit/core/dist/hooks/utilities';
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import {
   Dialog,
   DialogContent,
@@ -32,9 +55,18 @@ import {
   removeTemplateItem,
   updateTemplateItem,
   useTemplate,
+  duplicateTemplate,
+  sortTemplateItemsByCategory,
+  reorderTemplateItems,
 } from '@/app/(app)/templates/actions';
 import { searchProducts, type ProductSuggestion } from '@/app/(app)/actions';
 import { getCategoryIcon } from '@/lib/category-icons';
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const AVAILABLE_UNITS = ['szt', 'g', 'kg', 'ml', 'l'] as const;
 
 type Category = {
   id: string;
@@ -42,6 +74,10 @@ type Category = {
   icon: string;
   sort_order: number;
 };
+
+// ---------------------------------------------------------------------------
+// TemplatesList (root component)
+// ---------------------------------------------------------------------------
 
 export function TemplatesList({
   initialTemplates,
@@ -115,7 +151,11 @@ export function TemplatesList({
     );
   };
 
-  const handleEditItem = (templateId: string, itemId: string, updatedItem: Partial<TemplateItemData>) => {
+  const handleEditItem = (
+    templateId: string,
+    itemId: string,
+    updatedItem: Partial<TemplateItemData>,
+  ) => {
     setTemplatesList((prev) =>
       prev.map((t) =>
         t.id === templateId
@@ -127,6 +167,16 @@ export function TemplatesList({
             }
           : t,
       ),
+    );
+  };
+
+  const handleDuplicateTemplate = (newTemplate: TemplateData) => {
+    setTemplatesList((prev) => [...prev, newTemplate]);
+  };
+
+  const handleReorderItems = (templateId: string, items: TemplateItemData[]) => {
+    setTemplatesList((prev) =>
+      prev.map((t) => (t.id === templateId ? { ...t, items } : t)),
     );
   };
 
@@ -197,7 +247,13 @@ export function TemplatesList({
             onRename={(newName) => handleRenameTemplate(template.id, newName)}
             onAddItem={(item) => handleAddItem(template.id, item)}
             onRemoveItem={(itemId) => handleRemoveItem(template.id, itemId)}
-            onEditItem={(itemId, updatedItem) => handleEditItem(template.id, itemId, updatedItem)}
+            onEditItem={(itemId, updatedItem) =>
+              handleEditItem(template.id, itemId, updatedItem)
+            }
+            onDuplicate={handleDuplicateTemplate}
+            onReorderItems={(items) =>
+              handleReorderItems(template.id, items)
+            }
           />
         ))}
       </div>
@@ -220,6 +276,10 @@ export function TemplatesList({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// CreateTemplateDialog
+// ---------------------------------------------------------------------------
 
 function CreateTemplateDialog({
   open,
@@ -274,6 +334,10 @@ function CreateTemplateDialog({
   );
 }
 
+// ---------------------------------------------------------------------------
+// TemplateCard
+// ---------------------------------------------------------------------------
+
 function TemplateCard({
   template,
   categories,
@@ -282,6 +346,8 @@ function TemplateCard({
   onAddItem,
   onRemoveItem,
   onEditItem,
+  onDuplicate,
+  onReorderItems,
 }: {
   template: TemplateData;
   categories: Category[];
@@ -290,6 +356,8 @@ function TemplateCard({
   onAddItem: (item: TemplateItemData) => void;
   onRemoveItem: (itemId: string) => void;
   onEditItem: (itemId: string, updatedItem: Partial<TemplateItemData>) => void;
+  onDuplicate: (newTemplate: TemplateData) => void;
+  onReorderItems: (items: TemplateItemData[]) => void;
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -297,6 +365,16 @@ function TemplateCard({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(template.name);
   const [isPending, startTransition] = useTransition();
+
+  // DnD sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  );
 
   const handleUseTemplate = () => {
     setUseResult(null);
@@ -329,6 +407,50 @@ function TemplateCard({
         onRename(trimmed);
       }
       setIsRenaming(false);
+    });
+  };
+
+  const handleDuplicate = () => {
+    startTransition(async () => {
+      const result = await duplicateTemplate(template.id);
+      if (result.success && result.template) {
+        onDuplicate(result.template);
+      }
+    });
+  };
+
+  const handleSortByCategory = () => {
+    startTransition(async () => {
+      const result = await sortTemplateItemsByCategory(template.id);
+      if (result.success && result.sortedIds) {
+        // Reorder items locally based on returned sorted IDs
+        const itemMap = new Map(template.items.map((i) => [i.id, i]));
+        const sorted = result.sortedIds
+          .map((id) => itemMap.get(id))
+          .filter(Boolean) as TemplateItemData[];
+        onReorderItems(sorted);
+      }
+    });
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = template.items.findIndex((i) => i.id === active.id);
+    const newIndex = template.items.findIndex((i) => i.id === over.id);
+
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(template.items, oldIndex, newIndex);
+    onReorderItems(reordered);
+
+    // Persist to server
+    startTransition(async () => {
+      await reorderTemplateItems(
+        template.id,
+        reordered.map((i) => i.id),
+      );
     });
   };
 
@@ -384,14 +506,38 @@ function TemplateCard({
             <Check size={18} />
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={() => setIsRenaming(true)}
-            className="shrink-0 text-text-tertiary transition-colors hover:text-text-primary"
-            aria-label="Zmien nazwe szablonu"
-          >
-            <Pencil size={16} />
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => setIsRenaming(true)}
+              className="shrink-0 text-text-tertiary transition-colors hover:text-text-primary"
+              aria-label="Zmien nazwe szablonu"
+            >
+              <Pencil size={16} />
+            </button>
+
+            {/* Duplicate button */}
+            <button
+              type="button"
+              onClick={handleDuplicate}
+              disabled={isPending}
+              className="shrink-0 text-text-tertiary transition-colors hover:text-mint-500 disabled:opacity-30"
+              aria-label="Duplikuj szablon"
+            >
+              <Copy size={16} />
+            </button>
+
+            {/* Sort by category button */}
+            <button
+              type="button"
+              onClick={handleSortByCategory}
+              disabled={isPending || template.items.length < 2}
+              className="shrink-0 text-text-tertiary transition-colors hover:text-mint-500 disabled:opacity-30"
+              aria-label="Sortuj wg kategorii"
+            >
+              <ArrowUpDown size={16} />
+            </button>
+          </>
         )}
 
         <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
@@ -461,16 +607,29 @@ function TemplateCard({
         <div className="overflow-hidden">
           <div className="border-t border-border-light">
             {template.items.length > 0 && (
-              <div>
-                {template.items.map((item) => (
-                  <TemplateItemRow
-                    key={item.id}
-                    item={item}
-                    onRemove={() => onRemoveItem(item.id)}
-                    onEdit={(updatedItem) => onEditItem(item.id, updatedItem)}
-                  />
-                ))}
-              </div>
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={template.items.map((i) => i.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div>
+                    {template.items.map((item) => (
+                      <SortableTemplateItemRow
+                        key={item.id}
+                        item={item}
+                        onRemove={() => onRemoveItem(item.id)}
+                        onEdit={(updatedItem) =>
+                          onEditItem(item.id, updatedItem)
+                        }
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             )}
 
             {/* Add item input */}
@@ -485,7 +644,11 @@ function TemplateCard({
   );
 }
 
-function TemplateItemRow({
+// ---------------------------------------------------------------------------
+// SortableTemplateItemRow (wraps TemplateItemRow with drag handle)
+// ---------------------------------------------------------------------------
+
+function SortableTemplateItemRow({
   item,
   onRemove,
   onEdit,
@@ -493,6 +656,55 @@ function TemplateItemRow({
   item: TemplateItemData;
   onRemove: () => void;
   onEdit: (updatedItem: Partial<TemplateItemData>) => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    position: isDragging ? ('relative' as const) : undefined,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TemplateItemRow
+        item={item}
+        onRemove={onRemove}
+        onEdit={onEdit}
+        dragAttributes={attributes}
+        dragListeners={listeners}
+        isDragging={isDragging}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TemplateItemRow (with quantity controls, unit selector, drag handle)
+// ---------------------------------------------------------------------------
+
+function TemplateItemRow({
+  item,
+  onRemove,
+  onEdit,
+  dragAttributes,
+  dragListeners,
+  isDragging,
+}: {
+  item: TemplateItemData;
+  onRemove: () => void;
+  onEdit: (updatedItem: Partial<TemplateItemData>) => void;
+  dragAttributes?: DraggableAttributes;
+  dragListeners?: SyntheticListenerMap;
+  isDragging?: boolean;
 }) {
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
@@ -513,7 +725,9 @@ function TemplateItemRow({
       return;
     }
     startTransition(async () => {
-      const result = await updateTemplateItem(item.id, trimmed);
+      const result = await updateTemplateItem(item.id, {
+        productName: trimmed,
+      });
       if (result.success) {
         onEdit({ product_name: trimmed });
       }
@@ -521,70 +735,174 @@ function TemplateItemRow({
     });
   };
 
+  const handleQuantityChange = (delta: number) => {
+    const newQty = Math.max(0.5, item.quantity + delta);
+    // Determine step based on unit
+    const step = item.unit === 'g' || item.unit === 'ml' ? 50 : 1;
+    const adjusted = item.unit === 'g' || item.unit === 'ml'
+      ? Math.max(step, item.quantity + delta * step)
+      : Math.max(0.5, item.quantity + delta);
+
+    onEdit({ quantity: adjusted });
+    startTransition(async () => {
+      await updateTemplateItem(item.id, { quantity: adjusted });
+    });
+  };
+
+  const handleUnitChange = (newUnit: string) => {
+    onEdit({ unit: newUnit });
+    startTransition(async () => {
+      await updateTemplateItem(item.id, { unit: newUnit });
+    });
+  };
+
   const Icon = item.category_icon ? getCategoryIcon(item.category_icon) : null;
+
+  const formatQuantity = (qty: number) => {
+    return qty % 1 === 0 ? qty.toFixed(0) : qty.toString();
+  };
 
   return (
     <div
-      className={`flex items-center gap-3 border-b border-border-light px-4 py-2.5 last:border-b-0 ${
+      className={`border-b border-border-light last:border-b-0 ${
         isPending ? 'opacity-50' : ''
-      }`}
+      } ${isDragging ? 'bg-mint-50 shadow-md' : ''}`}
     >
-      {isEditing ? (
-        <input
-          type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') handleEditSubmit();
-            if (e.key === 'Escape') {
-              setIsEditing(false);
-              setEditValue(item.product_name);
-            }
-          }}
-          onBlur={handleEditSubmit}
-          autoFocus
-          disabled={isPending}
-          className="flex-1 rounded-lg border border-mint-300 bg-transparent px-2 py-0.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-mint-400"
-        />
-      ) : (
+      {/* Top row: drag handle, product name, category, delete */}
+      <div className="flex items-center gap-2 px-3 py-2.5">
+        {/* Drag handle */}
         <button
           type="button"
-          onClick={() => setIsEditing(true)}
-          className="flex-1 text-left text-sm text-text-primary hover:text-mint-600 transition-colors"
+          className="shrink-0 cursor-grab touch-none text-text-tertiary transition-colors hover:text-text-secondary active:cursor-grabbing"
+          aria-label="Przeciagnij aby zmienic kolejnosc"
+          {...dragAttributes}
+          {...dragListeners}
         >
-          {item.product_name}
+          <GripVertical size={16} />
         </button>
-      )}
-      {!isEditing && item.category_name && (
-        <span className="flex shrink-0 items-center gap-1 text-xs text-text-tertiary">
-          {Icon && <Icon size={12} />}
-          {item.category_name}
-        </span>
-      )}
-      {isEditing ? (
-        <button
-          type="button"
-          onClick={handleEditSubmit}
-          disabled={isPending}
-          className="shrink-0 text-mint-500 transition-opacity hover:opacity-70"
-          aria-label="Zapisz nazwe produktu"
-        >
-          <Check size={16} />
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={handleRemove}
-          disabled={isPending}
-          className="shrink-0 text-text-tertiary transition-colors hover:text-error-text disabled:opacity-30"
-          aria-label="Usun produkt z szablonu"
-        >
-          <X size={16} />
-        </button>
+
+        {isEditing ? (
+          <input
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleEditSubmit();
+              if (e.key === 'Escape') {
+                setIsEditing(false);
+                setEditValue(item.product_name);
+              }
+            }}
+            onBlur={handleEditSubmit}
+            autoFocus
+            disabled={isPending}
+            className="flex-1 rounded-lg border border-mint-300 bg-transparent px-2 py-0.5 text-sm text-text-primary focus:outline-none focus:ring-2 focus:ring-mint-400"
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="flex-1 text-left text-sm text-text-primary transition-colors hover:text-mint-600"
+          >
+            {item.product_name}
+          </button>
+        )}
+
+        {!isEditing && item.category_name && (
+          <span className="flex shrink-0 items-center gap-1 text-xs text-text-tertiary">
+            {Icon && <Icon size={12} />}
+            {item.category_name}
+          </span>
+        )}
+
+        {isEditing ? (
+          <button
+            type="button"
+            onClick={handleEditSubmit}
+            disabled={isPending}
+            className="shrink-0 text-mint-500 transition-opacity hover:opacity-70"
+            aria-label="Zapisz nazwe produktu"
+          >
+            <Check size={16} />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleRemove}
+            disabled={isPending}
+            className="shrink-0 text-text-tertiary transition-colors hover:text-error-text disabled:opacity-30"
+            aria-label="Usun produkt z szablonu"
+          >
+            <X size={16} />
+          </button>
+        )}
+      </div>
+
+      {/* Bottom row: quantity controls + unit selector */}
+      {!isEditing && (
+        <div className="flex items-center gap-2 px-3 pb-2.5">
+          {/* Spacer for drag handle alignment */}
+          <div className="w-4 shrink-0" />
+
+          {/* Quantity controls */}
+          <div className="flex items-center gap-1 rounded-xl border border-border bg-background px-1 py-0.5">
+            <button
+              type="button"
+              onClick={() => handleQuantityChange(-1)}
+              disabled={
+                isPending ||
+                (item.unit === 'g' || item.unit === 'ml'
+                  ? item.quantity <= 50
+                  : item.quantity <= 0.5)
+              }
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
+              aria-label="Zmniejsz ilosc"
+            >
+              <Minus size={14} />
+            </button>
+            <span className="min-w-[2.5rem] text-center text-sm font-semibold text-text-primary">
+              {formatQuantity(item.quantity)}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleQuantityChange(1)}
+              disabled={isPending}
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
+              aria-label="Zwieksz ilosc"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+
+          {/* Unit selector */}
+          <div className="flex items-center gap-0.5 rounded-xl border border-border bg-background px-1 py-0.5">
+            {AVAILABLE_UNITS.map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => {
+                  if (u !== item.unit) handleUnitChange(u);
+                }}
+                disabled={isPending}
+                className={`rounded-lg px-2 py-0.5 text-xs font-medium transition-colors ${
+                  u === item.unit
+                    ? 'bg-mint-500 text-white'
+                    : 'text-text-tertiary hover:bg-mint-50 hover:text-mint-600'
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// AddTemplateItemInput
+// ---------------------------------------------------------------------------
 
 function AddTemplateItemInput({
   templateId,
@@ -631,7 +949,9 @@ function AddTemplateItemInput({
         dropdownRef.current &&
         !dropdownRef.current.contains(e.target as Node) &&
         inputRef.current &&
-        !inputRef.current.closest('.add-item-wrapper')?.contains(e.target as Node)
+        !inputRef.current
+          .closest('.add-item-wrapper')
+          ?.contains(e.target as Node)
       ) {
         setShowDropdown(false);
       }
@@ -640,7 +960,12 @@ function AddTemplateItemInput({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const handleAdd = (name: string, categoryId?: string | null, categoryName?: string | null, categoryIcon?: string | null) => {
+  const handleAdd = (
+    name: string,
+    categoryId?: string | null,
+    categoryName?: string | null,
+    categoryIcon?: string | null,
+  ) => {
     const trimmed = name.trim();
     if (!trimmed) return;
     setShowDropdown(false);
@@ -654,6 +979,8 @@ function AddTemplateItemInput({
           category_id: categoryId ?? null,
           category_name: categoryName ?? null,
           category_icon: categoryIcon ?? null,
+          quantity: 1,
+          unit: result.unit ?? 'szt',
           sort_order: 0,
         });
         setValue('');
@@ -742,13 +1069,22 @@ function AddTemplateItemInput({
           role="listbox"
         >
           {suggestions.map((s, index) => {
-            const Icon = s.category_icon ? getCategoryIcon(s.category_icon) : null;
+            const SuggIcon = s.category_icon
+              ? getCategoryIcon(s.category_icon)
+              : null;
             return (
               <div
                 key={s.id}
                 role="option"
                 aria-selected={selectedIndex === index}
-                onClick={() => handleAdd(s.name, s.category_id, s.category_name, s.category_icon)}
+                onClick={() =>
+                  handleAdd(
+                    s.name,
+                    s.category_id,
+                    s.category_name,
+                    s.category_icon,
+                  )
+                }
                 className={`flex cursor-pointer items-center gap-3 px-3 py-2.5 ${
                   selectedIndex === index ? 'bg-mint-50' : 'hover:bg-mint-50'
                 } ${index > 0 ? 'border-t border-border-light' : ''}`}
@@ -758,7 +1094,7 @@ function AddTemplateItemInput({
                 </span>
                 {s.category_name && (
                   <span className="flex shrink-0 items-center gap-1 text-xs text-text-tertiary">
-                    {Icon && <Icon size={12} />}
+                    {SuggIcon && <SuggIcon size={12} />}
                     {s.category_name}
                   </span>
                 )}

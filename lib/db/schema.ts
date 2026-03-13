@@ -5,6 +5,7 @@ import {
   timestamp,
   boolean,
   integer,
+  numeric,
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
@@ -96,6 +97,10 @@ export const templateItems = pgTable('template_items', {
   categoryId: uuid('category_id').references(() => categories.id, {
     onDelete: 'set null',
   }),
+  quantity: numeric('quantity', { precision: 10, scale: 2 })
+    .notNull()
+    .default('1'),
+  unit: text('unit').notNull().default('szt'),
   sortOrder: integer('sort_order').notNull().default(0),
 });
 
