@@ -2,7 +2,7 @@ import { auth } from '@/lib/auth';
 import { NextResponse } from 'next/server';
 
 // Routes accessible without authentication
-const PUBLIC_ROUTES = ['/login', '/join', '/api/auth'];
+const PUBLIC_ROUTES = ['/login', '/join', '/api/auth', '/api/seed', '/api/embeddings/seed'];
 
 export default auth((req) => {
   const { pathname } = req.nextUrl;
