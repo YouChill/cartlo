@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { eq, or, isNull, asc } from 'drizzle-orm';
+import { eq, or, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { profiles, users, families, categories } from '@/lib/db/schema';
