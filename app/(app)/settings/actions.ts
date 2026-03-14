@@ -2,11 +2,11 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, asc, desc, sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { signOut as authSignOut, getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { profiles, users } from '@/lib/db/schema';
+import { profiles, users, products, categories, shoppingItems } from '@/lib/db/schema';
 
 // ---------------------------------------------------------------------------
 // Sign out
@@ -212,4 +212,121 @@ export async function sendInviteEmail(
       success: false,
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Search products for category management
+// ---------------------------------------------------------------------------
+export type ProductWithCategory = {
+  id: string;
+  name: string;
+  categoryId: string | null;
+  categoryName: string | null;
+  categoryIcon: string | null;
+};
+
+export async function searchProductsForSettings(
+  query: string,
+): Promise<ProductWithCategory[]> {
+  const trimmed = query.trim();
+  if (!trimmed) return [];
+
+  const userId = await getCurrentUserId();
+  if (!userId) return [];
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId) return [];
+
+  const rows = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      categoryId: products.categoryId,
+      categoryName: categories.name,
+      categoryIcon: categories.icon,
+    })
+    .from(products)
+    .leftJoin(categories, eq(products.categoryId, categories.id))
+    .where(
+      and(
+        ilike(products.name, `%${trimmed}%`),
+        or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+      ),
+    )
+    .orderBy(desc(products.usageCount))
+    .limit(20);
+
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
+// Update product category (from settings)
+// ---------------------------------------------------------------------------
+export async function updateProductCategory(
+  productId: string,
+  categoryId: string,
+): Promise<{ success: boolean; error?: string }> {
+  const userId = await getCurrentUserId();
+  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId) return { success: false, error: 'Nie nalezysz do rodziny' };
+
+  // Get product to verify access and get name
+  const [product] = await db
+    .select({ id: products.id, name: products.name, familyId: products.familyId })
+    .from(products)
+    .where(eq(products.id, productId))
+    .limit(1);
+
+  if (!product) return { success: false, error: 'Nie znaleziono produktu' };
+
+  // Only allow editing family products (not global seed products)
+  // If global, create a family-specific override
+  if (product.familyId === null) {
+    // Create family-specific product with the new category
+    await db
+      .insert(products)
+      .values({
+        name: product.name,
+        categoryId,
+        familyId: profile.familyId,
+        usageCount: 0,
+      })
+      .onConflictDoUpdate({
+        target: [products.name, products.familyId],
+        set: { categoryId },
+      });
+  } else {
+    // Update existing family product
+    await db
+      .update(products)
+      .set({ categoryId })
+      .where(eq(products.id, productId));
+  }
+
+  // Also update any active shopping items with this product name
+  await db
+    .update(shoppingItems)
+    .set({ categoryId })
+    .where(
+      and(
+        eq(shoppingItems.familyId, profile.familyId),
+        ilike(shoppingItems.productName, product.name),
+      ),
+    );
+
+  revalidatePath('/');
+  revalidatePath('/settings');
+  return { success: true };
 }
