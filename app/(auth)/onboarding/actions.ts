@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { nanoid } from 'nanoid';
-import { eq } from 'drizzle-orm';
+import { eq, ilike } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { families, profiles } from '@/lib/db/schema';
@@ -35,6 +35,21 @@ export async function createFamily(
   const userId = await getCurrentUserId();
   if (!userId) {
     redirect('/login');
+  }
+
+  // Check for duplicate family name (case-insensitive)
+  const [existing] = await db
+    .select({ id: families.id })
+    .from(families)
+    .where(ilike(families.name, familyName))
+    .limit(1);
+
+  if (existing) {
+    return {
+      error: 'Rodzina o tej nazwie już istnieje.',
+      inviteCode: null,
+      familyName: null,
+    };
   }
 
   // Generate unique invite code (8 chars, url-safe)
