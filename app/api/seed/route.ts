@@ -21,11 +21,20 @@ export async function POST(request: NextRequest) {
     embeddings: { success: false },
   };
 
-  // Step 1: Run seed.sql
+  // Step 1: Run seed.sql (split into individual statements for Neon HTTP driver)
   try {
     const seedPath = join(process.cwd(), 'drizzle', 'seed.sql');
     const seedSql = await readFile(seedPath, 'utf-8');
-    await db.execute(sql.raw(seedSql));
+
+    // Split on semicolons, strip comments, filter empty statements
+    const statements = seedSql
+      .split(';')
+      .map((s) => s.replace(/--[^\n]*/g, '').trim())
+      .filter((s) => s.length > 0);
+
+    for (const statement of statements) {
+      await db.execute(sql.raw(statement));
+    }
     results.sql = { success: true };
   } catch (error) {
     results.sql = {
