@@ -251,6 +251,27 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Torebki sniadaniowe','a0000000-0000-0000-0000-000000000012', NULL, 0)
 ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
 
+-- -----------------------------------------------------------------------------
+-- Sync family products: update category_id for family-specific products
+-- whose names match global (seed) products, so they pick up new categories.
+-- Also update category_id on shopping_items that reference those products.
+-- -----------------------------------------------------------------------------
+
+UPDATE public.products AS fp
+SET category_id = gp.category_id
+FROM public.products AS gp
+WHERE gp.family_id IS NULL
+  AND fp.family_id IS NOT NULL
+  AND lower(fp.name) = lower(gp.name)
+  AND (fp.category_id IS DISTINCT FROM gp.category_id);
+
+UPDATE public.shopping_items AS si
+SET category_id = p.category_id
+FROM public.products AS p
+WHERE si.product_name = p.name
+  AND p.family_id IS NULL
+  AND (si.category_id IS DISTINCT FROM p.category_id);
+
 -- =============================================================================
 -- Done. Run POST /api/embeddings/seed to generate embeddings for new products.
 -- =============================================================================
