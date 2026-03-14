@@ -1,22 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { neon } from '@neondatabase/serverless';
 import { readFile } from 'fs/promises';
 import { join } from 'path';
+import { sql } from 'drizzle-orm';
+import { db } from '@/lib/db';
 import { seedMissingEmbeddings, isEmbeddingConfigured } from '@/lib/embeddings';
 
-/**
- * POST /api/seed
- *
- * Runs the full seed pipeline:
- *   1. Execute drizzle/seed.sql (categories + products)
- *   2. Generate embeddings for new products
- *
- * Protected by AUTH_SECRET.
- *
- * Usage:
- *   curl -X POST https://your-app.vercel.app/api/seed \
- *     -H "Authorization: Bearer YOUR_AUTH_SECRET"
- */
 export async function POST(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const expectedToken = process.env.AUTH_SECRET;
@@ -37,8 +25,7 @@ export async function POST(request: NextRequest) {
   try {
     const seedPath = join(process.cwd(), 'drizzle', 'seed.sql');
     const seedSql = await readFile(seedPath, 'utf-8');
-    const sql = neon(process.env.DATABASE_URL!);
-    await sql(seedSql);
+    await db.execute(sql.raw(seedSql));
     results.sql = { success: true };
   } catch (error) {
     results.sql = {
