@@ -325,22 +325,15 @@ export async function updateProductCategory(
 
     // Only allow editing family products (not global seed products)
     // If global, create a family-specific override
+    // Use raw SQL to avoid Drizzle including the "embedding" column
+    // (which may not exist if pgvector migration hasn't been run)
     if (product.familyId === null) {
-      // Create family-specific product with the new category
-      await db
-        .insert(products)
-        .values({
-          name: product.name,
-          categoryId,
-          familyId: profile.familyId,
-          usageCount: 0,
-        })
-        .onConflictDoUpdate({
-          target: [products.name, products.familyId],
-          set: { categoryId },
-        });
+      await db.execute(sql`
+        INSERT INTO products (name, category_id, family_id, usage_count)
+        VALUES (${product.name}, ${categoryId}, ${profile.familyId}, 0)
+        ON CONFLICT (name, family_id) DO UPDATE SET category_id = ${categoryId}
+      `);
     } else {
-      // Update existing family product
       await db
         .update(products)
         .set({ categoryId })
