@@ -228,40 +228,71 @@ export type ProductWithCategory = {
 export async function searchProductsForSettings(
   query: string,
 ): Promise<ProductWithCategory[]> {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
+  try {
+    const trimmed = query.trim();
+    if (!trimmed) return [];
 
-  const userId = await getCurrentUserId();
-  if (!userId) return [];
+    const userId = await getCurrentUserId();
+    if (!userId) return [];
 
-  const [profile] = await db
-    .select({ familyId: profiles.familyId })
-    .from(profiles)
-    .where(eq(profiles.id, userId))
-    .limit(1);
+    const [profile] = await db
+      .select({ familyId: profiles.familyId })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
 
-  if (!profile?.familyId) return [];
+    if (!profile?.familyId) return [];
 
-  const rows = await db
-    .select({
-      id: products.id,
-      name: products.name,
-      categoryId: products.categoryId,
-      categoryName: categories.name,
-      categoryIcon: categories.icon,
-    })
-    .from(products)
-    .leftJoin(categories, eq(products.categoryId, categories.id))
-    .where(
-      and(
-        ilike(products.name, `%${trimmed}%`),
-        or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
-      ),
-    )
-    .orderBy(desc(products.usageCount))
-    .limit(20);
+    const matchedProducts = await db
+      .select({
+        id: products.id,
+        name: products.name,
+        categoryId: products.categoryId,
+      })
+      .from(products)
+      .where(
+        and(
+          ilike(products.name, `%${trimmed}%`),
+          or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+        ),
+      )
+      .orderBy(desc(products.usageCount))
+      .limit(20);
 
-  return rows;
+    if (matchedProducts.length === 0) return [];
+
+    // Fetch category info separately (same pattern as main actions.ts)
+    const categoryIds = [
+      ...new Set(matchedProducts.map((p) => p.categoryId).filter(Boolean)),
+    ] as string[];
+
+    const categoryMap: Record<string, { name: string; icon: string }> = {};
+    if (categoryIds.length > 0) {
+      const cats = await db
+        .select({
+          id: categories.id,
+          name: categories.name,
+          icon: categories.icon,
+        })
+        .from(categories)
+        .where(sql`${categories.id} IN ${categoryIds}`);
+
+      for (const c of cats) {
+        categoryMap[c.id] = { name: c.name, icon: c.icon };
+      }
+    }
+
+    return matchedProducts.map((p) => ({
+      id: p.id,
+      name: p.name,
+      categoryId: p.categoryId,
+      categoryName: p.categoryId ? (categoryMap[p.categoryId]?.name ?? null) : null,
+      categoryIcon: p.categoryId ? (categoryMap[p.categoryId]?.icon ?? null) : null,
+    }));
+  } catch (error) {
+    console.error('searchProductsForSettings error:', error);
+    return [];
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -271,62 +302,67 @@ export async function updateProductCategory(
   productId: string,
   categoryId: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
 
-  const [profile] = await db
-    .select({ familyId: profiles.familyId })
-    .from(profiles)
-    .where(eq(profiles.id, userId))
-    .limit(1);
+    const [profile] = await db
+      .select({ familyId: profiles.familyId })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
 
-  if (!profile?.familyId) return { success: false, error: 'Nie nalezysz do rodziny' };
+    if (!profile?.familyId) return { success: false, error: 'Nie nalezysz do rodziny' };
 
-  // Get product to verify access and get name
-  const [product] = await db
-    .select({ id: products.id, name: products.name, familyId: products.familyId })
-    .from(products)
-    .where(eq(products.id, productId))
-    .limit(1);
+    // Get product to verify access and get name
+    const [product] = await db
+      .select({ id: products.id, name: products.name, familyId: products.familyId })
+      .from(products)
+      .where(eq(products.id, productId))
+      .limit(1);
 
-  if (!product) return { success: false, error: 'Nie znaleziono produktu' };
+    if (!product) return { success: false, error: 'Nie znaleziono produktu' };
 
-  // Only allow editing family products (not global seed products)
-  // If global, create a family-specific override
-  if (product.familyId === null) {
-    // Create family-specific product with the new category
+    // Only allow editing family products (not global seed products)
+    // If global, create a family-specific override
+    if (product.familyId === null) {
+      // Create family-specific product with the new category
+      await db
+        .insert(products)
+        .values({
+          name: product.name,
+          categoryId,
+          familyId: profile.familyId,
+          usageCount: 0,
+        })
+        .onConflictDoUpdate({
+          target: [products.name, products.familyId],
+          set: { categoryId },
+        });
+    } else {
+      // Update existing family product
+      await db
+        .update(products)
+        .set({ categoryId })
+        .where(eq(products.id, productId));
+    }
+
+    // Also update any active shopping items with this product name
     await db
-      .insert(products)
-      .values({
-        name: product.name,
-        categoryId,
-        familyId: profile.familyId,
-        usageCount: 0,
-      })
-      .onConflictDoUpdate({
-        target: [products.name, products.familyId],
-        set: { categoryId },
-      });
-  } else {
-    // Update existing family product
-    await db
-      .update(products)
+      .update(shoppingItems)
       .set({ categoryId })
-      .where(eq(products.id, productId));
+      .where(
+        and(
+          eq(shoppingItems.familyId, profile.familyId),
+          ilike(shoppingItems.productName, product.name),
+        ),
+      );
+
+    revalidatePath('/');
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) {
+    console.error('updateProductCategory error:', error);
+    return { success: false, error: 'Wystapil blad podczas zmiany kategorii' };
   }
-
-  // Also update any active shopping items with this product name
-  await db
-    .update(shoppingItems)
-    .set({ categoryId })
-    .where(
-      and(
-        eq(shoppingItems.familyId, profile.familyId),
-        ilike(shoppingItems.productName, product.name),
-      ),
-    );
-
-  revalidatePath('/');
-  revalidatePath('/settings');
-  return { success: true };
 }
