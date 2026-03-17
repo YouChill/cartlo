@@ -91,7 +91,7 @@ export function ShoppingItem({
 
   return (
     <div
-      className={`border-b border-border-light last:border-b-0 ${
+      className={`border-b border-border-light last:border-b-0 first:rounded-t-2xl last:rounded-b-2xl ${
         isUncategorized ? 'border-l-[3px] border-l-warning-text' : ''
       } ${isPending ? 'opacity-70' : ''}`}
     >
