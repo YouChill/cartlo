@@ -123,7 +123,7 @@ export function ShoppingList({
                 count={group.items.length}
                 isUncategorized={isUncategorized}
               />
-              <div className="mx-4 overflow-hidden rounded-2xl border border-border bg-surface shadow-sm">
+              <div className="mx-4 rounded-2xl border border-border bg-surface shadow-sm">
                 {group.items.map((item) => (
                   <ShoppingItem
                     key={item.id}
