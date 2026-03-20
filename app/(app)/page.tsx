@@ -23,6 +23,8 @@ export default async function ListPage() {
       id: shoppingItems.id,
       product_name: shoppingItems.productName,
       category_id: shoppingItems.categoryId,
+      quantity: shoppingItems.quantity,
+      unit: shoppingItems.unit,
       is_checked: shoppingItems.isChecked,
       added_by: shoppingItems.addedBy,
       checked_by: shoppingItems.checkedBy,

@@ -13,6 +13,8 @@ type ShoppingItemData = {
   id: string;
   product_name: string;
   category_id: string | null;
+  quantity: string | null;
+  unit: string | null;
   is_checked: boolean;
   added_by: string;
   checked_by: string | null;
@@ -129,6 +131,8 @@ export function ShoppingList({
                     key={item.id}
                     id={item.id}
                     productName={item.product_name}
+                    quantity={parseFloat(item.quantity ?? '1')}
+                    unit={item.unit ?? 'szt'}
                     isChecked={item.is_checked}
                     addedBy={item.added_by}
                     checkedBy={item.checked_by}
