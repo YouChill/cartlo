@@ -141,6 +141,10 @@ export const shoppingItems = pgTable(
     categoryId: uuid('category_id').references(() => categories.id, {
       onDelete: 'set null',
     }),
+    quantity: numeric('quantity', { precision: 10, scale: 2 })
+      .notNull()
+      .default('1'),
+    unit: text('unit').notNull().default('szt'),
     isChecked: boolean('is_checked').notNull().default(false),
     addedBy: uuid('added_by')
       .notNull()

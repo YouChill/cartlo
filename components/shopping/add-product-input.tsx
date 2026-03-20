@@ -1,13 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Minus, Plus, Search } from 'lucide-react';
 import {
   addProduct,
   searchProducts,
   type ProductSuggestion,
 } from '@/app/(app)/actions';
 import { getCategoryIcon } from '@/lib/category-icons';
+
+const AVAILABLE_UNITS = ['szt', 'g', 'kg', 'ml', 'l'] as const;
+type Unit = (typeof AVAILABLE_UNITS)[number];
 
 export function AddProductInput() {
   const [value, setValue] = useState('');
@@ -16,6 +19,8 @@ export function AddProductInput() {
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [quantity, setQuantity] = useState(1);
+  const [unit, setUnit] = useState<Unit>('szt');
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -76,9 +81,11 @@ export function AddProductInput() {
     setShowDropdown(false);
     setSuggestions([]);
     startTransition(async () => {
-      const result = await addProduct(trimmed, categoryId);
+      const result = await addProduct(trimmed, categoryId, quantity, unit);
       if (result.success) {
         setValue('');
+        setQuantity(1);
+        setUnit('szt');
       } else {
         setError(result.error ?? 'Wystapil blad');
       }
@@ -101,6 +108,28 @@ export function AddProductInput() {
     // Default: add typed value (will auto-categorize via server action)
     handleAddProduct(value);
   };
+
+  const handleQuantityChange = (delta: number) => {
+    const step = unit === 'g' || unit === 'ml' ? 50 : 1;
+    const adjusted =
+      unit === 'g' || unit === 'ml'
+        ? Math.max(step, quantity + delta * step)
+        : Math.max(1, quantity + delta);
+    setQuantity(adjusted);
+  };
+
+  const handleUnitChange = (newUnit: Unit) => {
+    setUnit(newUnit);
+    // Reset quantity to sensible default when switching unit type
+    if ((newUnit === 'g' || newUnit === 'ml') && quantity < 50) {
+      setQuantity(50);
+    } else if (newUnit !== 'g' && newUnit !== 'ml' && quantity >= 50 && unit === 'g' || unit === 'ml') {
+      setQuantity(1);
+    }
+  };
+
+  const formatQuantity = (qty: number) =>
+    qty % 1 === 0 ? qty.toFixed(0) : qty.toString();
 
   // Check if typed value exactly matches any suggestion
   const exactMatch = suggestions.some(
@@ -141,41 +170,96 @@ export function AddProductInput() {
   return (
     <div className="relative px-4 pb-2 pt-3">
       <div
-        className={`flex items-center gap-3 rounded-2xl border-[1.5px] bg-surface px-4 py-3 shadow-sm transition-colors ${
+        className={`rounded-2xl border-[1.5px] bg-surface shadow-sm transition-colors ${
           error
             ? 'border-error-text'
             : 'border-border focus-within:border-mint-400 focus-within:shadow-[0_0_0_3px_rgba(74,222,128,0.15)]'
         }`}
       >
-        <Search size={20} className="shrink-0 text-text-tertiary" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={handleChange}
-          onKeyDown={handleKeyDown}
-          onFocus={() => {
-            if (value.trim() && suggestions.length > 0) {
-              setShowDropdown(true);
-            }
-          }}
-          placeholder="Dodaj produkt..."
-          disabled={isPending}
-          autoComplete="off"
-          role="combobox"
-          aria-expanded={showDropdown}
-          aria-autocomplete="list"
-          className="min-w-0 flex-1 bg-transparent text-base text-text-primary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
-        />
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={isPending || !value.trim()}
-          className="shrink-0 text-mint-500 transition-opacity disabled:opacity-30"
-          aria-label="Dodaj produkt"
-        >
-          <Plus size={24} />
-        </button>
+        {/* Search row */}
+        <div className="flex items-center gap-3 px-4 py-3">
+          <Search size={20} className="shrink-0 text-text-tertiary" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={handleChange}
+            onKeyDown={handleKeyDown}
+            onFocus={() => {
+              if (value.trim() && suggestions.length > 0) {
+                setShowDropdown(true);
+              }
+            }}
+            placeholder="Dodaj produkt..."
+            disabled={isPending}
+            autoComplete="off"
+            role="combobox"
+            aria-expanded={showDropdown}
+            aria-autocomplete="list"
+            className="min-w-0 flex-1 bg-transparent text-base text-text-primary placeholder:text-text-tertiary focus:outline-none disabled:opacity-50"
+          />
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isPending || !value.trim()}
+            className="shrink-0 text-mint-500 transition-opacity disabled:opacity-30"
+            aria-label="Dodaj produkt"
+          >
+            <Plus size={24} />
+          </button>
+        </div>
+
+        {/* Quantity + unit row */}
+        <div className="flex items-center gap-2 border-t border-border-light px-4 py-2">
+          {/* Quantity controls */}
+          <div className="flex items-center gap-1 rounded-xl border border-border bg-background px-1 py-0.5">
+            <button
+              type="button"
+              onClick={() => handleQuantityChange(-1)}
+              disabled={
+                isPending ||
+                (unit === 'g' || unit === 'ml' ? quantity <= 50 : quantity <= 1)
+              }
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
+              aria-label="Zmniejsz ilosc"
+            >
+              <Minus size={14} />
+            </button>
+            <span className="min-w-[2.5rem] text-center text-sm font-semibold text-text-primary">
+              {formatQuantity(quantity)}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleQuantityChange(1)}
+              disabled={isPending}
+              className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
+              aria-label="Zwieksz ilosc"
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+
+          {/* Unit selector */}
+          <div className="flex items-center gap-0.5 rounded-xl border border-border bg-background px-1 py-0.5">
+            {AVAILABLE_UNITS.map((u) => (
+              <button
+                key={u}
+                type="button"
+                onClick={() => {
+                  if (u !== unit) handleUnitChange(u);
+                }}
+                disabled={isPending}
+                className={`rounded-lg px-2 py-0.5 text-xs font-medium transition-colors ${
+                  u === unit
+                    ? 'bg-mint-500 text-white'
+                    : 'text-text-tertiary hover:bg-mint-50 hover:text-mint-600'
+                }`}
+              >
+                {u}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
       {error && (

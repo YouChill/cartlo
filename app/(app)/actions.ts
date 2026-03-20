@@ -162,6 +162,8 @@ export async function searchProducts(
 export async function addProduct(
   productName: string,
   knownCategoryId?: string | null,
+  quantity: number = 1,
+  unit: string = 'szt',
 ): Promise<{ success: boolean; error?: string }> {
   const trimmed = productName.trim();
   if (!trimmed) {
@@ -289,6 +291,8 @@ export async function addProduct(
     familyId: profile.familyId,
     productName: trimmed,
     categoryId,
+    quantity: quantity.toString(),
+    unit,
     addedBy: userId,
   });
 

@@ -14,6 +14,8 @@ type CategoryData = {
 type ShoppingItemProps = {
   id: string;
   productName: string;
+  quantity: number;
+  unit: string;
   isChecked: boolean;
   addedBy: string;
   checkedBy: string | null;
@@ -44,6 +46,8 @@ function formatRelativeTime(dateStr: string): string {
 export function ShoppingItem({
   id,
   productName,
+  quantity,
+  unit,
   isChecked,
   addedBy,
   checkedBy,
@@ -126,15 +130,26 @@ export function ShoppingItem({
           )}
         </div>
 
-        {/* Product name */}
-        <span
-          className={`flex-1 text-base transition-all duration-150 ${
-            optimisticChecked
-              ? 'text-text-disabled line-through'
-              : 'text-text-primary'
-          }`}
-        >
-          {productName}
+        {/* Product name + quantity/unit */}
+        <span className="flex flex-1 items-baseline gap-2">
+          <span
+            className={`text-base transition-all duration-150 ${
+              optimisticChecked
+                ? 'text-text-disabled line-through'
+                : 'text-text-primary'
+            }`}
+          >
+            {productName}
+          </span>
+          {(quantity !== 1 || unit !== 'szt') && (
+            <span
+              className={`text-sm transition-all duration-150 ${
+                optimisticChecked ? 'text-text-disabled line-through' : 'text-text-tertiary'
+              }`}
+            >
+              {quantity % 1 === 0 ? quantity.toFixed(0) : quantity.toString()} {unit}
+            </span>
+          )}
         </span>
 
         {/* Meta info */}
