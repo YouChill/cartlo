@@ -15,6 +15,7 @@ import {
   ArrowUpDown,
   GripVertical,
   Minus,
+  Upload,
 } from 'lucide-react';
 import {
   DndContext,
@@ -48,6 +49,7 @@ import { Button } from '@/components/ui/button';
 import {
   type TemplateData,
   type TemplateItemData,
+  type ImportTemplatePayload,
   createTemplate,
   deleteTemplate,
   renameTemplate,
@@ -58,6 +60,7 @@ import {
   duplicateTemplate,
   sortTemplateItemsByCategory,
   reorderTemplateItems,
+  importTemplate,
 } from '@/app/(app)/templates/actions';
 import { searchProducts, type ProductSuggestion } from '@/app/(app)/actions';
 import { getCategoryIcon } from '@/lib/category-icons';
@@ -91,6 +94,9 @@ export function TemplatesList({
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
   const [createError, setCreateError] = useState<string | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [importJson, setImportJson] = useState('');
+  const [importError, setImportError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const handleCreate = () => {
@@ -118,6 +124,58 @@ export function TemplatesList({
         setCreateError(result.error ?? 'Wystapil blad');
       }
     });
+  };
+
+  const handleImport = () => {
+    const trimmed = importJson.trim();
+    if (!trimmed) {
+      setImportError('Wklej JSON szablonu');
+      return;
+    }
+
+    let parsed: ImportTemplatePayload;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      setImportError('Nieprawidłowy format JSON');
+      return;
+    }
+
+    if (!parsed.name?.trim()) {
+      setImportError('Brak nazwy szablonu w JSON (pole "name")');
+      return;
+    }
+    if (!Array.isArray(parsed.items) || parsed.items.length === 0) {
+      setImportError('Brak produktów w szablonie (pole "items")');
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await importTemplate(parsed);
+      if (result.success && result.template) {
+        setTemplatesList((prev) => [...prev, result.template!]);
+        setImportJson('');
+        setImportDialogOpen(false);
+        setImportError(null);
+      } else {
+        setImportError(result.error ?? 'Wystąpił błąd');
+      }
+    });
+  };
+
+  const handleFileImport = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result;
+      if (typeof text === 'string') {
+        setImportJson(text);
+        setImportError(null);
+      }
+    };
+    reader.onerror = () => {
+      setImportError('Nie udało się odczytać pliku');
+    };
+    reader.readAsText(file);
   };
 
   const handleDeleteTemplate = (templateId: string) => {
@@ -193,14 +251,24 @@ export function TemplatesList({
           <p className="mt-1 text-sm text-text-secondary">
             Utwórz szablon, by szybko dodawać ulubione produkty do listy.
           </p>
-          <button
-            type="button"
-            onClick={() => setCreateDialogOpen(true)}
-            className="mt-6 flex items-center gap-2 rounded-2xl bg-mint-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
-          >
-            <Plus size={18} />
-            Nowy szablon
-          </button>
+          <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+            <button
+              type="button"
+              onClick={() => setCreateDialogOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-2xl bg-mint-500 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+            >
+              <Plus size={18} />
+              Nowy szablon
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportDialogOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-2xl border-[1.5px] border-mint-300 bg-white px-5 py-2.5 text-sm font-semibold text-mint-600 transition-colors hover:bg-mint-50"
+            >
+              <Upload size={18} />
+              Importuj szablon
+            </button>
+          </div>
         </div>
 
         <CreateTemplateDialog
@@ -218,21 +286,46 @@ export function TemplatesList({
           onSubmit={handleCreate}
           isPending={isPending}
         />
+
+        <ImportTemplateDialog
+          open={importDialogOpen}
+          onOpenChange={(open) => {
+            setImportDialogOpen(open);
+            if (!open) {
+              setImportJson('');
+              setImportError(null);
+            }
+          }}
+          json={importJson}
+          onJsonChange={setImportJson}
+          error={importError}
+          onSubmit={handleImport}
+          onFileImport={handleFileImport}
+          isPending={isPending}
+        />
       </div>
     );
   }
 
   return (
     <div className="pb-4">
-      {/* Create button */}
-      <div className="px-4 py-3">
+      {/* Create & Import buttons */}
+      <div className="flex gap-2 px-4 py-3">
         <button
           type="button"
           onClick={() => setCreateDialogOpen(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-mint-300 bg-mint-50 py-3 text-sm font-semibold text-mint-600 transition-colors hover:bg-mint-100"
+          className="flex flex-1 items-center justify-center gap-2 rounded-2xl border-[1.5px] border-dashed border-mint-300 bg-mint-50 py-3 text-sm font-semibold text-mint-600 transition-colors hover:bg-mint-100"
         >
           <Plus size={18} />
           Nowy szablon
+        </button>
+        <button
+          type="button"
+          onClick={() => setImportDialogOpen(true)}
+          className="flex items-center justify-center gap-2 rounded-2xl border-[1.5px] border-mint-300 bg-white px-4 py-3 text-sm font-semibold text-mint-600 transition-colors hover:bg-mint-50"
+          title="Importuj szablon z JSON"
+        >
+          <Upload size={18} />
         </button>
       </div>
 
@@ -271,6 +364,23 @@ export function TemplatesList({
         onNameChange={setNewTemplateName}
         error={createError}
         onSubmit={handleCreate}
+        isPending={isPending}
+      />
+
+      <ImportTemplateDialog
+        open={importDialogOpen}
+        onOpenChange={(open) => {
+          setImportDialogOpen(open);
+          if (!open) {
+            setImportJson('');
+            setImportError(null);
+          }
+        }}
+        json={importJson}
+        onJsonChange={setImportJson}
+        error={importError}
+        onSubmit={handleImport}
+        onFileImport={handleFileImport}
         isPending={isPending}
       />
     </div>
@@ -327,6 +437,82 @@ function CreateTemplateDialog({
           </Button>
           <Button onClick={onSubmit} disabled={isPending || !name.trim()}>
             {isPending ? 'Tworzenie...' : 'Utwórz'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ImportTemplateDialog
+// ---------------------------------------------------------------------------
+
+function ImportTemplateDialog({
+  open,
+  onOpenChange,
+  json,
+  onJsonChange,
+  error,
+  onSubmit,
+  onFileImport,
+  isPending,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  json: string;
+  onJsonChange: (v: string) => void;
+  error: string | null;
+  onSubmit: () => void;
+  onFileImport: (file: File) => void;
+  isPending: boolean;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Importuj szablon</DialogTitle>
+          <DialogDescription>
+            Wklej JSON szablonu lub załaduj plik .json
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <textarea
+            value={json}
+            onChange={(e) => onJsonChange(e.target.value)}
+            placeholder={`{\n  "name": "Mój szablon",\n  "items": [\n    { "product_name": "Mleko", "category": "Nabiał", "quantity": 2, "unit": "szt" }\n  ]\n}`}
+            rows={8}
+            className="rounded-xl border border-border bg-surface px-4 py-2.5 font-mono text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-mint-400"
+          />
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json,application/json"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onFileImport(file);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center justify-center gap-2 rounded-xl border border-border bg-surface-raised px-4 py-2 text-sm font-medium text-text-secondary transition-colors hover:bg-surface"
+          >
+            <Upload size={16} />
+            Załaduj plik .json
+          </button>
+          {error && <p className="text-xs text-error-text">{error}</p>}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Anuluj
+          </Button>
+          <Button onClick={onSubmit} disabled={isPending || !json.trim()}>
+            {isPending ? 'Importowanie...' : 'Importuj'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -597,6 +597,145 @@ export async function sortTemplateItemsByCategory(
 }
 
 // ---------------------------------------------------------------------------
+// Import template from JSON
+// ---------------------------------------------------------------------------
+
+export type ImportTemplateItem = {
+  product_name: string;
+  category?: string | null;
+  quantity?: number;
+  unit?: string;
+};
+
+export type ImportTemplatePayload = {
+  name: string;
+  items: ImportTemplateItem[];
+};
+
+export async function importTemplate(
+  payload: ImportTemplatePayload,
+): Promise<{ success: boolean; error?: string; template?: TemplateData }> {
+  const name = payload.name?.trim();
+  if (!name)
+    return { success: false, error: 'Nazwa szablonu nie może być pusta' };
+
+  if (!Array.isArray(payload.items) || payload.items.length === 0)
+    return { success: false, error: 'Szablon musi zawierać przynajmniej jeden produkt' };
+
+  const validUnits = new Set(['szt', 'g', 'kg', 'ml', 'l']);
+
+  const userId = await getCurrentUserId();
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Fetch all categories for name matching
+  const allCategories = await db
+    .select({ id: categories.id, name: categories.name, icon: categories.icon })
+    .from(categories)
+    .where(
+      or(
+        isNull(categories.familyId),
+        eq(categories.familyId, profile.familyId),
+      ),
+    );
+
+  const categoryByName: Record<string, { id: string; name: string; icon: string }> = {};
+  allCategories.forEach((c) => {
+    categoryByName[c.name.toLowerCase()] = { id: c.id, name: c.name, icon: c.icon };
+  });
+
+  // Create template
+  const [template] = await db
+    .insert(templates)
+    .values({ familyId: profile.familyId, name, createdBy: userId })
+    .returning({ id: templates.id, createdAt: templates.createdAt });
+
+  // Insert items
+  const itemsToInsert = payload.items.map((item, index) => {
+    const productName = item.product_name?.trim();
+    if (!productName) return null;
+
+    const matchedCategory = item.category
+      ? categoryByName[item.category.toLowerCase()] ?? null
+      : null;
+
+    const unit = item.unit && validUnits.has(item.unit) ? item.unit : 'szt';
+    const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
+
+    return {
+      templateId: template.id,
+      productName,
+      categoryId: matchedCategory?.id ?? null,
+      quantity: quantity.toString(),
+      unit,
+      sortOrder: index,
+    };
+  }).filter(Boolean) as {
+    templateId: string;
+    productName: string;
+    categoryId: string | null;
+    quantity: string;
+    unit: string;
+    sortOrder: number;
+  }[];
+
+  if (itemsToInsert.length > 0) {
+    await db.insert(templateItems).values(itemsToInsert);
+  }
+
+  // Fetch inserted items for response
+  const newItems = await db
+    .select({
+      id: templateItems.id,
+      product_name: templateItems.productName,
+      category_id: templateItems.categoryId,
+      quantity: templateItems.quantity,
+      unit: templateItems.unit,
+      sort_order: templateItems.sortOrder,
+    })
+    .from(templateItems)
+    .where(eq(templateItems.templateId, template.id))
+    .orderBy(asc(templateItems.sortOrder));
+
+  const categoryMap: Record<string, { name: string; icon: string }> = {};
+  allCategories.forEach((c) => {
+    categoryMap[c.id] = { name: c.name, icon: c.icon };
+  });
+
+  revalidatePath('/templates');
+  return {
+    success: true,
+    template: {
+      id: template.id,
+      name,
+      created_at: template.createdAt.toISOString(),
+      items: newItems.map((i) => ({
+        id: i.id,
+        product_name: i.product_name,
+        category_id: i.category_id,
+        category_name: i.category_id
+          ? (categoryMap[i.category_id]?.name ?? null)
+          : null,
+        category_icon: i.category_id
+          ? (categoryMap[i.category_id]?.icon ?? null)
+          : null,
+        quantity: parseFloat(i.quantity),
+        unit: i.unit,
+        sort_order: i.sort_order,
+      })),
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Use template (add to shopping list)
 // ---------------------------------------------------------------------------
 
