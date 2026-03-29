@@ -121,7 +121,14 @@ export async function searchProducts(
     }
   }
 
-  const allProducts = [...matchedProducts, ...semanticProducts];
+  // Deduplicate by name (global + family products can share names)
+  const seenNames = new Set<string>();
+  const allProducts = [...matchedProducts, ...semanticProducts].filter((p) => {
+    const key = p.name.toLowerCase();
+    if (seenNames.has(key)) return false;
+    seenNames.add(key);
+    return true;
+  });
 
   if (allProducts.length === 0) return [];
 

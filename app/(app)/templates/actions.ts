@@ -343,6 +343,9 @@ export async function addTemplateItem(
   error?: string;
   id?: string;
   unit?: string;
+  category_id?: string | null;
+  category_name?: string | null;
+  category_icon?: string | null;
 }> {
   const trimmed = productName.trim();
   if (!trimmed)
@@ -412,8 +415,28 @@ export async function addTemplateItem(
     })
     .returning({ id: templateItems.id });
 
+  // Resolve category name for the response
+  let resolvedCategoryName: string | null = null;
+  let resolvedCategoryIcon: string | null = categoryIcon;
+  if (resolvedCategoryId) {
+    const [cat] = await db
+      .select({ name: categories.name, icon: categories.icon })
+      .from(categories)
+      .where(eq(categories.id, resolvedCategoryId))
+      .limit(1);
+    resolvedCategoryName = cat?.name ?? null;
+    resolvedCategoryIcon = cat?.icon ?? null;
+  }
+
   revalidatePath('/templates');
-  return { success: true, id: inserted.id, unit: defaultUnit };
+  return {
+    success: true,
+    id: inserted.id,
+    unit: defaultUnit,
+    category_id: resolvedCategoryId,
+    category_name: resolvedCategoryName,
+    category_icon: resolvedCategoryIcon,
+  };
 }
 
 export async function removeTemplateItem(

@@ -1162,9 +1162,9 @@ function AddTemplateItemInput({
         onAdded({
           id: result.id,
           product_name: trimmed,
-          category_id: categoryId ?? null,
-          category_name: categoryName ?? null,
-          category_icon: categoryIcon ?? null,
+          category_id: result.category_id ?? categoryId ?? null,
+          category_name: result.category_name ?? categoryName ?? null,
+          category_icon: result.category_icon ?? categoryIcon ?? null,
           quantity: 1,
           unit: result.unit ?? 'szt',
           sort_order: 0,
