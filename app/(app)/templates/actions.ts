@@ -65,6 +65,11 @@ function getDefaultUnitForCategory(
   return CATEGORY_UNIT_MAP[categoryIcon] ?? 'szt';
 }
 
+/** Strip diacritics so that e.g. "Nabiał" matches "Nabial". */
+function removeDiacritics(str: string): string {
+  return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 // ---------------------------------------------------------------------------
 // Queries
 // ---------------------------------------------------------------------------
@@ -649,7 +654,10 @@ export async function importTemplate(
 
   const categoryByName: Record<string, { id: string; name: string; icon: string }> = {};
   allCategories.forEach((c) => {
+    // Index by both the original name and the diacritic-stripped version
+    // so imports work regardless of whether names use Polish characters or not.
     categoryByName[c.name.toLowerCase()] = { id: c.id, name: c.name, icon: c.icon };
+    categoryByName[removeDiacritics(c.name).toLowerCase()] = { id: c.id, name: c.name, icon: c.icon };
   });
 
   // Create template
@@ -663,8 +671,11 @@ export async function importTemplate(
     const productName = item.product_name?.trim();
     if (!productName) return null;
 
+    // Try exact match first, then diacritic-stripped match
     const matchedCategory = item.category
-      ? categoryByName[item.category.toLowerCase()] ?? null
+      ? categoryByName[item.category.toLowerCase()]
+        ?? categoryByName[removeDiacritics(item.category).toLowerCase()]
+        ?? null
       : null;
 
     const unit = item.unit && validUnits.has(item.unit) ? item.unit : 'szt';
