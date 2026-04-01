@@ -29,7 +29,7 @@ export function CategoryPicker({
         }}
         className="flex items-center gap-1.5 rounded-lg border border-warning-border bg-warning-bg px-2.5 py-1.5 text-xs font-semibold text-warning-text transition-colors hover:bg-warning-border/40"
       >
-        Wybierz kategorie
+        Wybierz kategorię
         <ChevronDown
           size={14}
           className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}

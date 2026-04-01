@@ -88,7 +88,7 @@ export function SettingsClient({
                   htmlFor="displayName"
                   className="mb-1.5 block text-sm font-semibold text-text-primary"
                 >
-                  Imie
+                  Imię
                 </label>
                 <Input
                   id="displayName"
@@ -111,7 +111,7 @@ export function SettingsClient({
 
               {profileState.success && (
                 <div className="rounded-lg bg-mint-50 px-3 py-2 text-sm text-mint-600">
-                  Imie zostalo zmienione.
+                  Imię zostało zmienione.
                 </div>
               )}
 
@@ -130,7 +130,7 @@ export function SettingsClient({
       {/* Change password section */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-bold text-text-primary">
-          Zmiana hasla
+          Zmiana hasła
         </h2>
         <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
           <form action={passwordAction}>
@@ -140,7 +140,7 @@ export function SettingsClient({
                   htmlFor="currentPassword"
                   className="mb-1.5 block text-sm font-semibold text-text-primary"
                 >
-                  Obecne haslo
+                  Obecne hasło
                 </label>
                 <Input
                   id="currentPassword"
@@ -155,7 +155,7 @@ export function SettingsClient({
                   htmlFor="newPassword"
                   className="mb-1.5 block text-sm font-semibold text-text-primary"
                 >
-                  Nowe haslo
+                  Nowe hasło
                 </label>
                 <Input
                   id="newPassword"
@@ -171,7 +171,7 @@ export function SettingsClient({
                   htmlFor="confirmPassword"
                   className="mb-1.5 block text-sm font-semibold text-text-primary"
                 >
-                  Powtorz nowe haslo
+                  Powtórz nowe hasło
                 </label>
                 <Input
                   id="confirmPassword"
@@ -191,7 +191,7 @@ export function SettingsClient({
 
               {passwordState.success && (
                 <div className="rounded-lg bg-mint-50 px-3 py-2 text-sm text-mint-600">
-                  Haslo zostalo zmienione.
+                  Hasło zostało zmienione.
                 </div>
               )}
 
@@ -200,7 +200,7 @@ export function SettingsClient({
                 disabled={isPasswordPending}
                 className="h-11 w-full rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
               >
-                {isPasswordPending ? 'Zmieniam...' : 'Zmien haslo'}
+                {isPasswordPending ? 'Zmieniam...' : 'Zmień hasło'}
               </Button>
             </div>
           </form>
@@ -210,7 +210,7 @@ export function SettingsClient({
       {/* Invite by email section */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-bold text-text-primary">
-          Zapros przez email
+          Zaproś przez email
         </h2>
         <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
           <form action={inviteAction}>
@@ -239,7 +239,7 @@ export function SettingsClient({
               </div>
 
               <p className="text-xs text-text-tertiary">
-                Wyslemy zaproszenie z linkiem do dolaczenia do Twojej rodziny.
+                Wyślemy zaproszenie z linkiem do dołączenia do Twojej rodziny.
               </p>
 
               {inviteState.error && (
@@ -250,7 +250,7 @@ export function SettingsClient({
 
               {inviteState.success && (
                 <div className="rounded-lg bg-mint-50 px-3 py-2 text-sm text-mint-600">
-                  Zaproszenie zostalo wyslane!
+                  Zaproszenie zostało wysłane!
                 </div>
               )}
 
@@ -259,7 +259,7 @@ export function SettingsClient({
                 disabled={isInvitePending}
                 className="h-11 w-full rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
               >
-                {isInvitePending ? 'Wysylanie...' : 'Wyslij zaproszenie'}
+                {isInvitePending ? 'Wysyłanie...' : 'Wyślij zaproszenie'}
               </Button>
             </div>
           </form>
@@ -276,7 +276,7 @@ export function SettingsClient({
 
       {/* Theme section */}
       <section className="mb-8">
-        <h2 className="mb-3 text-lg font-bold text-text-primary">Wyglad</h2>
+        <h2 className="mb-3 text-lg font-bold text-text-primary">Wygląd</h2>
         <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
           <div className="flex gap-2">
             {THEME_OPTIONS.map(({ value, label, Icon }) => (
@@ -305,7 +305,7 @@ export function SettingsClient({
           {showLogoutConfirm ? (
             <div className="rounded-lg border border-warning-border bg-warning-bg p-3">
               <p className="mb-2 text-sm text-warning-text">
-                Czy na pewno chcesz sie wylogowac?
+                Czy na pewno chcesz się wylogować?
               </p>
               <div className="flex gap-2">
                 <Button
@@ -332,7 +332,7 @@ export function SettingsClient({
               variant="outline"
               className="h-11 w-full rounded-xl border-border text-[15px] font-semibold text-error-text hover:bg-error-bg"
             >
-              Wyloguj sie
+              Wyloguj się
             </Button>
           )}
         </div>

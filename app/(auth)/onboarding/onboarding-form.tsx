@@ -39,7 +39,7 @@ export function OnboardingForm() {
     return (
       <div className="rounded-2xl border border-border bg-surface p-6 shadow-md">
         <h2 className="mb-4 text-lg font-bold text-text-primary">
-          Utworz nowa rodzine
+          Utwórz nową rodzinę
         </h2>
         <form action={formAction}>
           <div className="space-y-4">
@@ -65,7 +65,7 @@ export function OnboardingForm() {
                 htmlFor="displayName"
                 className="mb-1.5 block text-sm font-semibold text-text-primary"
               >
-                Twoje imie
+                Twoje imię
               </label>
               <Input
                 id="displayName"
@@ -88,7 +88,7 @@ export function OnboardingForm() {
               disabled={isPending}
               className="h-11 w-full rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
             >
-              {isPending ? 'Tworzenie...' : 'Utworz rodzine'}
+              {isPending ? 'Tworzenie...' : 'Utwórz rodzinę'}
             </Button>
 
             <button
@@ -112,7 +112,7 @@ export function OnboardingForm() {
           onClick={() => setStep('create')}
           className="h-12 w-full rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
         >
-          Utworz nowa rodzine
+          Utwórz nową rodzinę
         </Button>
 
         <Button
@@ -177,7 +177,7 @@ function SuccessScreen({
 
       <div className="mb-4">
         <p className="mb-2 text-sm text-text-secondary">
-          Udostepnij ten link, aby zaprosic bliskich:
+          Udostępnij ten link, aby zaprosić bliskich:
         </p>
         <div className="flex items-center gap-2 rounded-xl border border-border bg-surface-raised p-3">
           <span className="flex-1 truncate text-sm text-text-primary">
@@ -198,7 +198,7 @@ function SuccessScreen({
         asChild
         className="h-11 w-full rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
       >
-        <Link href="/">Przejdz do listy</Link>
+        <Link href="/">Przejdź do listy</Link>
       </Button>
     </div>
   );

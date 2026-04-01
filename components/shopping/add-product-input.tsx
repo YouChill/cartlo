@@ -87,7 +87,7 @@ export function AddProductInput() {
         setQuantity(1);
         setUnit('szt');
       } else {
-        setError(result.error ?? 'Wystapil blad');
+        setError(result.error ?? 'Wystąpił błąd');
       }
       inputRef.current?.focus();
     });
@@ -221,7 +221,7 @@ export function AddProductInput() {
                 (unit === 'g' || unit === 'ml' ? quantity <= 50 : quantity <= 1)
               }
               className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
-              aria-label="Zmniejsz ilosc"
+              aria-label="Zmniejsz ilość"
             >
               <Minus size={14} />
             </button>
@@ -233,7 +233,7 @@ export function AddProductInput() {
               onClick={() => handleQuantityChange(1)}
               disabled={isPending}
               className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
-              aria-label="Zwieksz ilosc"
+              aria-label="Zwiększ ilość"
             >
               <Plus size={14} />
             </button>

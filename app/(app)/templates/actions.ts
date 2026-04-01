@@ -165,10 +165,10 @@ export async function createTemplate(
 ): Promise<{ success: boolean; error?: string; id?: string }> {
   const trimmed = name.trim();
   if (!trimmed)
-    return { success: false, error: 'Nazwa szablonu nie moze byc pusta' };
+    return { success: false, error: 'Nazwa szablonu nie może być pusta' };
 
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   const [profile] = await db
     .select({ familyId: profiles.familyId })
@@ -177,7 +177,7 @@ export async function createTemplate(
     .limit(1);
 
   if (!profile?.familyId)
-    return { success: false, error: 'Nie nalezysz do rodziny' };
+    return { success: false, error: 'Nie należysz do rodziny' };
 
   const [template] = await db
     .insert(templates)
@@ -192,7 +192,7 @@ export async function deleteTemplate(
   templateId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   await db.delete(templates).where(eq(templates.id, templateId));
 
@@ -206,10 +206,10 @@ export async function renameTemplate(
 ): Promise<{ success: boolean; error?: string }> {
   const trimmed = name.trim();
   if (!trimmed)
-    return { success: false, error: 'Nazwa szablonu nie moze byc pusta' };
+    return { success: false, error: 'Nazwa szablonu nie może być pusta' };
 
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   await db
     .update(templates)
@@ -224,7 +224,7 @@ export async function duplicateTemplate(
   templateId: string,
 ): Promise<{ success: boolean; error?: string; template?: TemplateData }> {
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   const [profile] = await db
     .select({ familyId: profiles.familyId })
@@ -233,7 +233,7 @@ export async function duplicateTemplate(
     .limit(1);
 
   if (!profile?.familyId)
-    return { success: false, error: 'Nie nalezysz do rodziny' };
+    return { success: false, error: 'Nie należysz do rodziny' };
 
   // Fetch source template
   const [source] = await db
@@ -351,10 +351,10 @@ export async function addTemplateItem(
 }> {
   const trimmed = productName.trim();
   if (!trimmed)
-    return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
+    return { success: false, error: 'Nazwa produktu nie może być pusta' };
 
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   let resolvedCategoryId = categoryId ?? null;
   let categoryIcon: string | null = null;
@@ -425,7 +425,7 @@ export async function removeTemplateItem(
   itemId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   await db.delete(templateItems).where(eq(templateItems.id, itemId));
 
@@ -443,14 +443,14 @@ export async function updateTemplateItem(
   },
 ): Promise<{ success: boolean; error?: string }> {
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   const updateSet: Record<string, unknown> = {};
 
   if (data.productName !== undefined) {
     const trimmed = data.productName.trim();
     if (!trimmed)
-      return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
+      return { success: false, error: 'Nazwa produktu nie może być pusta' };
     updateSet.productName = trimmed;
 
     // Auto-resolve category if not explicitly provided
@@ -486,7 +486,7 @@ export async function updateTemplateItem(
 
   if (data.quantity !== undefined) {
     if (data.quantity <= 0)
-      return { success: false, error: 'Ilosc musi byc wieksza od 0' };
+      return { success: false, error: 'Ilość musi być większa od 0' };
     updateSet.quantity = data.quantity.toString();
   }
 
@@ -516,7 +516,7 @@ export async function reorderTemplateItems(
   itemIds: string[],
 ): Promise<{ success: boolean; error?: string }> {
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   // Update sort_order for each item based on its position in the array
   const updates = itemIds.map((id, index) =>
@@ -536,7 +536,7 @@ export async function sortTemplateItemsByCategory(
   templateId: string,
 ): Promise<{ success: boolean; error?: string; sortedIds?: string[] }> {
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   // Fetch items with category info
   const items = await db
@@ -757,7 +757,7 @@ export async function useTemplate(templateId: string): Promise<{
   skipped?: number;
 }> {
   const userId = await getCurrentUserId();
-  if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+  if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
   const [profile] = await db
     .select({ familyId: profiles.familyId })
@@ -766,7 +766,7 @@ export async function useTemplate(templateId: string): Promise<{
     .limit(1);
 
   if (!profile?.familyId)
-    return { success: false, error: 'Nie nalezysz do rodziny' };
+    return { success: false, error: 'Nie należysz do rodziny' };
 
   const items = await db
     .select({
@@ -803,7 +803,7 @@ export async function useTemplate(templateId: string): Promise<{
   if (toInsert.length === 0) {
     return {
       success: false,
-      error: 'Wszystkie produkty z szablonu sa juz na liscie',
+      error: 'Wszystkie produkty z szablonu są już na liście',
     };
   }
 

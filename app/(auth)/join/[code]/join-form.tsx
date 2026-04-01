@@ -45,14 +45,14 @@ export function JoinForm({
             </svg>
           </div>
           <h2 className="text-lg font-bold text-text-primary">
-            Dolaczyles do rodziny &ldquo;{state.familyName}&rdquo;!
+            Dołączyłeś do rodziny &ldquo;{state.familyName}&rdquo;!
           </h2>
         </div>
         <Button
           asChild
           className="h-11 w-full rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
         >
-          <Link href="/">Przejdz do listy</Link>
+          <Link href="/">Przejdź do listy</Link>
         </Button>
       </div>
     );
@@ -61,10 +61,10 @@ export function JoinForm({
   return (
     <div className="rounded-2xl border border-border bg-surface p-6 shadow-md">
       <h2 className="mb-1 text-lg font-bold text-text-primary">
-        Dolacz do rodziny
+        Dołącz do rodziny
       </h2>
       <p className="mb-4 text-sm text-text-secondary">
-        Dolaczasz do: <span className="font-semibold">{familyName}</span>
+        Dołączasz do: <span className="font-semibold">{familyName}</span>
       </p>
 
       <form action={formAction}>
@@ -75,7 +75,7 @@ export function JoinForm({
               htmlFor="displayName"
               className="mb-1.5 block text-sm font-semibold text-text-primary"
             >
-              Twoje imie
+              Twoje imię
             </label>
             <Input
               id="displayName"
@@ -98,7 +98,7 @@ export function JoinForm({
             disabled={isPending}
             className="h-11 w-full rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
           >
-            {isPending ? 'Dolaczanie...' : 'Dolacz'}
+            {isPending ? 'Dołączanie...' : 'Dołącz'}
           </Button>
         </div>
       </form>

@@ -30,13 +30,13 @@ export async function updateDisplayName(
   const displayName = (formData.get('displayName') as string)?.trim();
 
   if (!displayName) {
-    return { error: 'Podaj swoje imie.', success: false };
+    return { error: 'Podaj swoje imię.', success: false };
   }
   if (displayName.length < 2) {
-    return { error: 'Imie musi miec minimum 2 znaki.', success: false };
+    return { error: 'Imię musi mieć minimum 2 znaki.', success: false };
   }
   if (displayName.length > 30) {
-    return { error: 'Imie moze miec maksymalnie 30 znakow.', success: false };
+    return { error: 'Imię może mieć maksymalnie 30 znaków.', success: false };
   }
 
   const userId = await getCurrentUserId();
@@ -68,16 +68,16 @@ export async function changePassword(
   const confirmPassword = (formData.get('confirmPassword') as string) ?? '';
 
   if (!currentPassword || !newPassword || !confirmPassword) {
-    return { error: 'Wypelnij wszystkie pola.', success: false };
+    return { error: 'Wypełnij wszystkie pola.', success: false };
   }
   if (newPassword.length < 6) {
     return {
-      error: 'Nowe haslo musi miec minimum 6 znakow.',
+      error: 'Nowe hasło musi mieć minimum 6 znaków.',
       success: false,
     };
   }
   if (newPassword !== confirmPassword) {
-    return { error: 'Hasla nie sa identyczne.', success: false };
+    return { error: 'Hasła nie są identyczne.', success: false };
   }
 
   const userId = await getCurrentUserId();
@@ -93,7 +93,7 @@ export async function changePassword(
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) {
-    return { error: 'Obecne haslo jest nieprawidlowe.', success: false };
+    return { error: 'Obecne hasło jest nieprawidłowe.', success: false };
   }
 
   const newHash = await bcrypt.hash(newPassword, 12);
@@ -125,7 +125,7 @@ export async function sendInviteEmail(
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
-    return { error: 'Podaj prawidlowy adres email.', success: false };
+    return { error: 'Podaj prawidłowy adres email.', success: false };
   }
 
   const userId = await getCurrentUserId();
@@ -138,7 +138,7 @@ export async function sendInviteEmail(
     .limit(1);
 
   if (!profile?.familyId) {
-    return { error: 'Nie nalezysz do zadnej rodziny.', success: false };
+    return { error: 'Nie należysz do żadnej rodziny.', success: false };
   }
 
   const { families } = await import('@/lib/db/schema');
@@ -156,7 +156,7 @@ export async function sendInviteEmail(
   const smtpPass = process.env.SMTP_PASS;
   if (!smtpUser || !smtpPass) {
     return {
-      error: 'Wysylanie emaili nie jest skonfigurowane. Uzyj linku zaproszenia.',
+      error: 'Wysyłanie emaili nie jest skonfigurowane. Użyj linku zaproszenia.',
       success: false,
     };
   }
@@ -183,18 +183,18 @@ export async function sendInviteEmail(
     await transporter.sendMail({
       from: process.env.SMTP_FROM ?? `Cartlo <${smtpUser}>`,
       to: email,
-      subject: `${profile.displayName} zaprasza Cie do rodziny "${family.name}" w Cartlo`,
+      subject: `${profile.displayName} zaprasza Cię do rodziny "${family.name}" w Cartlo`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 16px;">
-          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dolacz do rodziny "${family.name}"</h2>
+          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dołącz do rodziny "${family.name}"</h2>
           <p style="color: #6b6b6b; font-size: 15px; line-height: 1.6;">
-            ${profile.displayName} zaprasza Cie do wspolnej listy zakupow w <strong>Cartlo</strong>.
+            ${profile.displayName} zaprasza Cię do wspólnej listy zakupów w <strong>Cartlo</strong>.
           </p>
           <a href="${inviteLink}"
              style="display: inline-block; margin-top: 16px; padding: 12px 24px;
                     background: #4ade80; color: #fff; font-weight: 600;
                     text-decoration: none; border-radius: 12px; font-size: 15px;">
-            Dolacz do rodziny
+            Dołącz do rodziny
           </a>
           <p style="margin-top: 24px; color: #9b9b9b; font-size: 13px;">
             Lub skopiuj link: <br/>
@@ -208,7 +208,7 @@ export async function sendInviteEmail(
   } catch (err) {
     console.error('Email send error:', err);
     return {
-      error: 'Wystapil blad podczas wysylania. Sprobuj ponownie.',
+      error: 'Wystąpił błąd podczas wysyłania. Spróbuj ponownie.',
       success: false,
     };
   }
@@ -304,7 +304,7 @@ export async function updateProductCategory(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const userId = await getCurrentUserId();
-    if (!userId) return { success: false, error: 'Nie jestes zalogowany' };
+    if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
     const [profile] = await db
       .select({ familyId: profiles.familyId })
@@ -312,7 +312,7 @@ export async function updateProductCategory(
       .where(eq(profiles.id, userId))
       .limit(1);
 
-    if (!profile?.familyId) return { success: false, error: 'Nie nalezysz do rodziny' };
+    if (!profile?.familyId) return { success: false, error: 'Nie należysz do rodziny' };
 
     // Get product to verify access and get name
     const [product] = await db
@@ -356,6 +356,6 @@ export async function updateProductCategory(
     return { success: true };
   } catch (error) {
     console.error('updateProductCategory error:', error);
-    return { success: false, error: 'Wystapil blad podczas zmiany kategorii' };
+    return { success: false, error: 'Wystąpił błąd podczas zmiany kategorii' };
   }
 }

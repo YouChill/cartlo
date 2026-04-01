@@ -28,7 +28,7 @@ export async function joinFamily(
   }
 
   if (!displayName) {
-    return { error: 'Podaj swoje imie.', success: false, familyName: null };
+    return { error: 'Podaj swoje imię.', success: false, familyName: null };
   }
 
   const userId = await getCurrentUserId();
@@ -45,7 +45,7 @@ export async function joinFamily(
 
   if (profile?.familyId) {
     return {
-      error: 'Juz nalezysz do rodziny.',
+      error: 'Już należysz do rodziny.',
       success: false,
       familyName: null,
     };
@@ -60,7 +60,7 @@ export async function joinFamily(
 
   if (!family) {
     return {
-      error: 'Nieprawidlowy kod zaproszeniowy.',
+      error: 'Nieprawidłowy kod zaproszeniowy.',
       success: false,
       familyName: null,
     };

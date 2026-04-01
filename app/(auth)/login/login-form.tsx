@@ -28,8 +28,8 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
       {hasJoinCode && (
         <div className="mb-4 rounded-lg bg-mint-50 px-3 py-2 text-center text-sm text-mint-600">
           {isLogin
-            ? 'Zaloguj sie, aby dolaczyc do rodziny'
-            : 'Zarejestruj sie, aby dolaczyc do rodziny'}
+            ? 'Zaloguj się, aby dołączyć do rodziny'
+            : 'Zarejestruj się, aby dołączyć do rodziny'}
         </div>
       )}
 
@@ -49,7 +49,7 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
               id="email"
               name="email"
               type="email"
-              placeholder="twoj@email.pl"
+              placeholder="twój@email.pl"
               required
               autoComplete="email"
               className="h-11 rounded-xl border-border bg-surface text-base focus:border-mint-400 focus:ring-mint-400/15"
@@ -61,13 +61,13 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
               htmlFor="password"
               className="mb-1.5 block text-sm font-semibold text-text-primary"
             >
-              Haslo
+              Hasło
             </label>
             <Input
               id="password"
               name="password"
               type="password"
-              placeholder="Min. 6 znakow"
+              placeholder="Min. 6 znaków"
               required
               minLength={6}
               autoComplete={isLogin ? 'current-password' : 'new-password'}
@@ -81,13 +81,13 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
                 htmlFor="confirmPassword"
                 className="mb-1.5 block text-sm font-semibold text-text-primary"
               >
-                Powtorz haslo
+                Powtórz hasło
               </label>
               <Input
                 id="confirmPassword"
                 name="confirmPassword"
                 type="password"
-                placeholder="Powtorz haslo"
+                placeholder="Powtórz hasło"
                 required
                 minLength={6}
                 autoComplete="new-password"
@@ -111,11 +111,11 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
               ? 'Poczekaj...'
               : isLogin
                 ? hasJoinCode
-                  ? 'Zaloguj i dolacz'
-                  : 'Zaloguj sie'
+                  ? 'Zaloguj i dołącz'
+                  : 'Zaloguj się'
                 : hasJoinCode
-                  ? 'Zarejestruj i dolacz'
-                  : 'Zarejestruj sie'}
+                  ? 'Zarejestruj i dołącz'
+                  : 'Zarejestruj się'}
           </Button>
         </div>
       </form>
@@ -129,18 +129,18 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
               onClick={() => setMode('register')}
               className="font-semibold text-mint-500 hover:text-mint-600"
             >
-              Zarejestruj sie
+              Zarejestruj się
             </button>
           </>
         ) : (
           <>
-            Masz juz konto?{' '}
+            Masz już konto?{' '}
             <button
               type="button"
               onClick={() => setMode('login')}
               className="font-semibold text-mint-500 hover:text-mint-600"
             >
-              Zaloguj sie
+              Zaloguj się
             </button>
           </>
         )}
