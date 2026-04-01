@@ -4,7 +4,7 @@ import { families } from '@/lib/db/schema';
 import { JoinForm } from './join-form';
 
 export const metadata = {
-  title: 'Dolacz do rodziny — Cartlo',
+  title: 'Dołącz do rodziny — Cartlo',
 };
 
 type Props = {
@@ -52,10 +52,10 @@ export default async function JoinPage({ params }: Props) {
                 </svg>
               </div>
               <h2 className="text-lg font-bold text-text-primary">
-                Nieprawidlowy link
+                Nieprawidłowy link
               </h2>
               <p className="mt-2 text-sm text-text-secondary">
-                Ten kod zaproszeniowy jest nieprawidlowy lub wygasl.
+                Ten kod zaproszeniowy jest nieprawidłowy lub wygasł.
               </p>
             </div>
           </div>

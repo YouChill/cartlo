@@ -102,7 +102,7 @@ export function TemplatesList({
   const handleCreate = () => {
     const trimmed = newTemplateName.trim();
     if (!trimmed) {
-      setCreateError('Wpisz nazwe szablonu');
+      setCreateError('Wpisz nazwę szablonu');
       return;
     }
     startTransition(async () => {
@@ -121,7 +121,7 @@ export function TemplatesList({
         setCreateDialogOpen(false);
         setCreateError(null);
       } else {
-        setCreateError(result.error ?? 'Wystapil blad');
+        setCreateError(result.error ?? 'Wystąpił błąd');
       }
     });
   };
@@ -246,7 +246,7 @@ export function TemplatesList({
             <LayoutTemplate size={32} className="text-text-tertiary" />
           </div>
           <h2 className="text-lg font-bold text-text-primary">
-            Brak szablonow
+            Brak szablonów
           </h2>
           <p className="mt-1 text-sm text-text-secondary">
             Utwórz szablon, by szybko dodawać ulubione produkty do listy.
@@ -569,12 +569,12 @@ function TemplateCard({
       if (result.success) {
         const skippedMsg =
           result.skipped && result.skipped > 0
-            ? ` (${result.skipped} juz bylo na liscie)`
+            ? ` (${result.skipped} już było na liście)`
             : '';
         setUseResult(`Dodano ${result.added} produktów${skippedMsg}`);
         setTimeout(() => setUseResult(null), 3000);
       } else {
-        setUseResult(result.error ?? 'Wystapil blad');
+        setUseResult(result.error ?? 'Wystąpił błąd');
         setTimeout(() => setUseResult(null), 3000);
       }
     });
@@ -687,7 +687,7 @@ function TemplateCard({
             onClick={handleRenameSubmit}
             disabled={isPending}
             className="shrink-0 text-mint-500 transition-opacity hover:opacity-70"
-            aria-label="Zapisz nazwe"
+            aria-label="Zapisz nazwę"
           >
             <Check size={18} />
           </button>
@@ -697,7 +697,7 @@ function TemplateCard({
               type="button"
               onClick={() => setIsRenaming(true)}
               className="shrink-0 text-text-tertiary transition-colors hover:text-text-primary"
-              aria-label="Zmien nazwe szablonu"
+              aria-label="Zmień nazwę szablonu"
             >
               <Pencil size={16} />
             </button>
@@ -731,7 +731,7 @@ function TemplateCard({
             <button
               type="button"
               className="shrink-0 text-text-tertiary transition-colors hover:text-error-text"
-              aria-label="Usun szablon"
+              aria-label="Usuń szablon"
             >
               <Trash2 size={16} />
             </button>
@@ -960,7 +960,7 @@ function TemplateItemRow({
         <button
           type="button"
           className="shrink-0 cursor-grab touch-none text-text-tertiary transition-colors hover:text-text-secondary active:cursor-grabbing"
-          aria-label="Przeciagnij aby zmienic kolejnosc"
+          aria-label="Przeciągnij aby zmienić kolejność"
           {...dragAttributes}
           {...dragListeners}
         >
@@ -1007,7 +1007,7 @@ function TemplateItemRow({
             onClick={handleEditSubmit}
             disabled={isPending}
             className="shrink-0 text-mint-500 transition-opacity hover:opacity-70"
-            aria-label="Zapisz nazwe produktu"
+            aria-label="Zapisz nazwę produktu"
           >
             <Check size={16} />
           </button>
@@ -1017,7 +1017,7 @@ function TemplateItemRow({
             onClick={handleRemove}
             disabled={isPending}
             className="shrink-0 text-text-tertiary transition-colors hover:text-error-text disabled:opacity-30"
-            aria-label="Usun produkt z szablonu"
+            aria-label="Usuń produkt z szablonu"
           >
             <X size={16} />
           </button>
@@ -1042,7 +1042,7 @@ function TemplateItemRow({
                   : item.quantity <= 0.5)
               }
               className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
-              aria-label="Zmniejsz ilosc"
+              aria-label="Zmniejsz ilość"
             >
               <Minus size={14} />
             </button>
@@ -1054,7 +1054,7 @@ function TemplateItemRow({
               onClick={() => handleQuantityChange(1)}
               disabled={isPending}
               className="flex h-6 w-6 items-center justify-center rounded-lg text-text-tertiary transition-colors hover:bg-mint-50 hover:text-mint-600 disabled:opacity-30"
-              aria-label="Zwieksz ilosc"
+              aria-label="Zwiększ ilość"
             >
               <Plus size={14} />
             </button>

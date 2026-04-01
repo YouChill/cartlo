@@ -22,14 +22,14 @@ export async function createFamily(
 
   if (!familyName) {
     return {
-      error: 'Podaj nazwe rodziny.',
+      error: 'Podaj nazwę rodziny.',
       inviteCode: null,
       familyName: null,
     };
   }
 
   if (!displayName) {
-    return { error: 'Podaj swoje imie.', inviteCode: null, familyName: null };
+    return { error: 'Podaj swoje imię.', inviteCode: null, familyName: null };
   }
 
   const userId = await getCurrentUserId();
@@ -63,7 +63,7 @@ export async function createFamily(
 
   if (!family) {
     return {
-      error: 'Nie udalo sie utworzyc rodziny. Sprobuj ponownie.',
+      error: 'Nie udało się utworzyć rodziny. Spróbuj ponownie.',
       inviteCode: null,
       familyName: null,
     };

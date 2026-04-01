@@ -75,10 +75,10 @@ export function ShoppingItem({
       try {
         const result = await classifyProduct(id, productName, categoryId);
         if (!result.success) {
-          setClassifyError(result.error ?? 'Nie udalo sie przypisac kategorii');
+          setClassifyError(result.error ?? 'Nie udało się przypisać kategorii');
         }
       } catch {
-        setClassifyError('Wystapil blad przy przypisywaniu kategorii');
+        setClassifyError('Wystąpił błąd przy przypisywaniu kategorii');
       }
     });
   };

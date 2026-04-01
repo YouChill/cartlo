@@ -70,7 +70,7 @@ export function ProductCategories({
       <h2 className="mb-3 text-lg font-bold text-text-primary">Produkty</h2>
       <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
         <p className="mb-3 text-xs text-text-tertiary">
-          Wyszukaj produkt i zmien jego kategorie. Zmiana dotyczy takze produktow na liscie zakupow.
+          Wyszukaj produkt i zmień jego kategorię. Zmiana dotyczy także produktów na liście zakupów.
         </p>
 
         {/* Search */}
@@ -103,7 +103,7 @@ export function ProductCategories({
           <div className="mt-4">
             {results.length === 0 ? (
               <p className="py-4 text-center text-sm text-text-tertiary">
-                Nie znaleziono produktow.
+                Nie znaleziono produktów.
               </p>
             ) : (
               <ul className="divide-y divide-border-light">

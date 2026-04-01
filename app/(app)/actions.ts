@@ -20,7 +20,7 @@ export async function toggleShoppingItem(
 ): Promise<{ success: boolean; error?: string }> {
   const userId = await getCurrentUserId();
   if (!userId) {
-    return { success: false, error: 'Nie jestes zalogowany' };
+    return { success: false, error: 'Nie jesteś zalogowany' };
   }
 
   const [profile] = await db
@@ -167,12 +167,12 @@ export async function addProduct(
 ): Promise<{ success: boolean; error?: string }> {
   const trimmed = productName.trim();
   if (!trimmed) {
-    return { success: false, error: 'Nazwa produktu nie moze byc pusta' };
+    return { success: false, error: 'Nazwa produktu nie może być pusta' };
   }
 
   const userId = await getCurrentUserId();
   if (!userId) {
-    return { success: false, error: 'Nie jestes zalogowany' };
+    return { success: false, error: 'Nie jesteś zalogowany' };
   }
 
   const [profile] = await db
@@ -182,7 +182,7 @@ export async function addProduct(
     .limit(1);
 
   if (!profile?.familyId) {
-    return { success: false, error: 'Nie nalezysz do rodziny' };
+    return { success: false, error: 'Nie należysz do rodziny' };
   }
 
   // Check for duplicates on active list
@@ -199,7 +199,7 @@ export async function addProduct(
     .limit(1);
 
   if (existing.length > 0) {
-    return { success: false, error: 'Ten produkt juz jest na liscie' };
+    return { success: false, error: 'Ten produkt już jest na liście' };
   }
 
   // Determine category: use known category if provided, otherwise auto-detect
@@ -308,7 +308,7 @@ export async function classifyProduct(
 ): Promise<{ success: boolean; error?: string }> {
   const userId = await getCurrentUserId();
   if (!userId) {
-    return { success: false, error: 'Nie jestes zalogowany' };
+    return { success: false, error: 'Nie jesteś zalogowany' };
   }
 
   const [profile] = await db
@@ -318,7 +318,7 @@ export async function classifyProduct(
     .limit(1);
 
   if (!profile?.familyId) {
-    return { success: false, error: 'Nie nalezysz do rodziny' };
+    return { success: false, error: 'Nie należysz do rodziny' };
   }
 
   // Update the shopping item's category
@@ -386,7 +386,7 @@ export async function clearCheckedItems(): Promise<{
 }> {
   const userId = await getCurrentUserId();
   if (!userId) {
-    return { success: false, error: 'Nie jestes zalogowany' };
+    return { success: false, error: 'Nie jesteś zalogowany' };
   }
 
   const [profile] = await db
@@ -396,7 +396,7 @@ export async function clearCheckedItems(): Promise<{
     .limit(1);
 
   if (!profile?.familyId) {
-    return { success: false, error: 'Nie nalezysz do rodziny' };
+    return { success: false, error: 'Nie należysz do rodziny' };
   }
 
   await db

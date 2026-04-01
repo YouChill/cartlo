@@ -10,7 +10,7 @@ import { profiles, families } from '@/lib/db/schema';
 export async function regenerateInviteCode() {
   const userId = await getCurrentUserId();
   if (!userId) {
-    return { error: 'Nie jestes zalogowany.' };
+    return { error: 'Nie jesteś zalogowany.' };
   }
 
   const [profile] = await db
@@ -20,7 +20,7 @@ export async function regenerateInviteCode() {
     .limit(1);
 
   if (!profile?.familyId) {
-    return { error: 'Nie nalezysz do zadnej rodziny.' };
+    return { error: 'Nie należysz do żadnej rodziny.' };
   }
 
   const newCode = nanoid(8);

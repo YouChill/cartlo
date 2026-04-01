@@ -20,7 +20,7 @@ export async function login(
   const joinCode = (formData.get('joinCode') as string) || null;
 
   if (!email || !password) {
-    return { error: 'Wypelnij wszystkie pola.' };
+    return { error: 'Wypełnij wszystkie pola.' };
   }
 
   try {
@@ -30,7 +30,7 @@ export async function login(
       redirect: false,
     });
   } catch {
-    return { error: 'Nieprawidlowy email lub haslo.' };
+    return { error: 'Nieprawidłowy email lub hasło.' };
   }
 
   // If there's a join code, redirect to the join page
@@ -72,7 +72,7 @@ export async function register(
   const joinCode = (formData.get('joinCode') as string) || null;
 
   if (!email || !password || !confirmPassword) {
-    return { error: 'Wypelnij wszystkie pola.' };
+    return { error: 'Wypełnij wszystkie pola.' };
   }
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -81,11 +81,11 @@ export async function register(
   }
 
   if (password.length < 6) {
-    return { error: 'Haslo musi miec minimum 6 znakow.' };
+    return { error: 'Hasło musi mieć minimum 6 znaków.' };
   }
 
   if (password !== confirmPassword) {
-    return { error: 'Hasla nie sa identyczne.' };
+    return { error: 'Hasła nie są identyczne.' };
   }
 
   const normalizedEmail = email.toLowerCase();
@@ -98,7 +98,7 @@ export async function register(
     .limit(1);
 
   if (existing) {
-    return { error: 'Ten email jest juz zarejestrowany.' };
+    return { error: 'Ten email jest już zarejestrowany.' };
   }
 
   // Create user

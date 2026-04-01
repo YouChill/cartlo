@@ -126,15 +126,15 @@ export function CheckedSection({ items, memberNames }: CheckedSectionProps) {
                   type="button"
                   className="w-full text-center text-sm font-semibold text-error-text transition-opacity hover:opacity-80"
                 >
-                  Wyczysc kupione
+                  Wyczyść kupione
                 </button>
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Wyczysc kupione</DialogTitle>
+                  <DialogTitle>Wyczyść kupione</DialogTitle>
                   <DialogDescription>
-                    Czy na pewno chcesz usunac {items.length} kupionych pozycji?
-                    Tej operacji nie mozna cofnac.
+                    Czy na pewno chcesz usunąć {items.length} kupionych pozycji?
+                    Tej operacji nie można cofnąć.
                   </DialogDescription>
                 </DialogHeader>
                 <DialogFooter>
@@ -149,7 +149,7 @@ export function CheckedSection({ items, memberNames }: CheckedSectionProps) {
                     onClick={handleClearAll}
                     disabled={isPending}
                   >
-                    {isPending ? 'Usuwanie...' : 'Usun'}
+                    {isPending ? 'Usuwanie...' : 'Usuń'}
                   </Button>
                 </DialogFooter>
               </DialogContent>
