@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq, and, or, isNull, ilike, desc, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, desc, sql, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { profiles, shoppingItems, products, categories } from '@/lib/db/schema';
@@ -113,11 +113,11 @@ export async function searchProducts(
               usageCount: products.usageCount,
             })
             .from(products)
-            .where(sql`${products.id} IN ${semanticIds}`);
+            .where(inArray(products.id, semanticIds));
         }
       }
-    } catch {
-      // Semantic search failed — return ILIKE results only
+    } catch (err) {
+      console.error('[searchProducts] Semantic search failed:', err);
     }
   }
 
@@ -139,7 +139,7 @@ export async function searchProducts(
         icon: categories.icon,
       })
       .from(categories)
-      .where(sql`${categories.id} IN ${categoryIds}`);
+      .where(inArray(categories.id, categoryIds));
 
     cats.forEach((c) => {
       categoryMap[c.id] = { name: c.name, icon: c.icon };
@@ -249,8 +249,8 @@ export async function addProduct(
           if (similar.length > 0 && similar[0].categoryId) {
             embeddingCategoryId = similar[0].categoryId;
           }
-        } catch {
-          // Embedding generation failed — fall back to uncategorized
+        } catch (err) {
+          console.error('[addProduct] Embedding generation failed:', err);
         }
       }
 
@@ -377,6 +377,35 @@ export async function classifyProduct(
 
   revalidatePath('/');
   notifyListUpdate(profile.familyId);
+  return { success: true };
+}
+
+export async function updateQuantity(
+  itemId: string,
+  newQuantity: number,
+): Promise<{ success: boolean; error?: string }> {
+  if (newQuantity <= 0) {
+    return { success: false, error: 'Ilość musi być większa od 0' };
+  }
+
+  const userId = await getCurrentUserId();
+  if (!userId) {
+    return { success: false, error: 'Nie jesteś zalogowany' };
+  }
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  await db
+    .update(shoppingItems)
+    .set({ quantity: newQuantity.toString() })
+    .where(eq(shoppingItems.id, itemId));
+
+  revalidatePath('/');
+  if (profile?.familyId) notifyListUpdate(profile.familyId);
   return { success: true };
 }
 
