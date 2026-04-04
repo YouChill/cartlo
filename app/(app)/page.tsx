@@ -33,7 +33,7 @@ export default async function ListPage() {
     })
     .from(shoppingItems)
     .where(eq(shoppingItems.familyId, profile.familyId))
-    .orderBy(asc(shoppingItems.createdAt));
+    .orderBy(asc(shoppingItems.productName));
 
   // Fetch categories
   const cats = await db
