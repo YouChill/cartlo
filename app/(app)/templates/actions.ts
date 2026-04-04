@@ -194,7 +194,22 @@ export async function deleteTemplate(
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
-  await db.delete(templates).where(eq(templates.id, templateId));
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  const result = await db
+    .delete(templates)
+    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .returning({ id: templates.id });
+
+  if (result.length === 0)
+    return { success: false, error: 'Szablon nie istnieje' };
 
   revalidatePath('/templates');
   return { success: true };
@@ -211,10 +226,23 @@ export async function renameTemplate(
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
-  await db
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  const result = await db
     .update(templates)
     .set({ name: trimmed })
-    .where(eq(templates.id, templateId));
+    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .returning({ id: templates.id });
+
+  if (result.length === 0)
+    return { success: false, error: 'Szablon nie istnieje' };
 
   revalidatePath('/templates');
   return { success: true };
@@ -235,11 +263,11 @@ export async function duplicateTemplate(
   if (!profile?.familyId)
     return { success: false, error: 'Nie należysz do rodziny' };
 
-  // Fetch source template
+  // Fetch source template (verify it belongs to user's family)
   const [source] = await db
     .select({ id: templates.id, name: templates.name })
     .from(templates)
-    .where(eq(templates.id, templateId))
+    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
     .limit(1);
 
   if (!source)
@@ -427,6 +455,25 @@ export async function removeTemplateItem(
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Verify item belongs to a template owned by user's family
+  const [item] = await db
+    .select({ id: templateItems.id })
+    .from(templateItems)
+    .innerJoin(templates, eq(templateItems.templateId, templates.id))
+    .where(and(eq(templateItems.id, itemId), eq(templates.familyId, profile.familyId)))
+    .limit(1);
+
+  if (!item) return { success: false, error: 'Element nie istnieje' };
+
   await db.delete(templateItems).where(eq(templateItems.id, itemId));
 
   revalidatePath('/templates');
@@ -445,6 +492,25 @@ export async function updateTemplateItem(
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Verify item belongs to a template owned by user's family
+  const [item] = await db
+    .select({ id: templateItems.id })
+    .from(templateItems)
+    .innerJoin(templates, eq(templateItems.templateId, templates.id))
+    .where(and(eq(templateItems.id, itemId), eq(templates.familyId, profile.familyId)))
+    .limit(1);
+
+  if (!item) return { success: false, error: 'Element nie istnieje' };
+
   const updateSet: Record<string, unknown> = {};
 
   if (data.productName !== undefined) {
@@ -455,28 +521,20 @@ export async function updateTemplateItem(
 
     // Auto-resolve category if not explicitly provided
     if (data.categoryId === undefined) {
-      const [profile] = await db
-        .select({ familyId: profiles.familyId })
-        .from(profiles)
-        .where(eq(profiles.id, userId))
-        .limit(1);
-
-      if (profile?.familyId) {
-        const [knownProduct] = await db
-          .select({ categoryId: products.categoryId })
-          .from(products)
-          .where(
-            and(
-              ilike(products.name, trimmed),
-              or(
-                isNull(products.familyId),
-                eq(products.familyId, profile.familyId),
-              ),
+      const [knownProduct] = await db
+        .select({ categoryId: products.categoryId })
+        .from(products)
+        .where(
+          and(
+            ilike(products.name, trimmed),
+            or(
+              isNull(products.familyId),
+              eq(products.familyId, profile.familyId),
             ),
-          )
-          .limit(1);
-        updateSet.categoryId = knownProduct?.categoryId ?? null;
-      }
+          ),
+        )
+        .limit(1);
+      updateSet.categoryId = knownProduct?.categoryId ?? null;
     }
   }
 
@@ -518,6 +576,24 @@ export async function reorderTemplateItems(
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Verify template belongs to user's family
+  const [template] = await db
+    .select({ id: templates.id })
+    .from(templates)
+    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .limit(1);
+
+  if (!template) return { success: false, error: 'Szablon nie istnieje' };
+
   // Update sort_order for each item based on its position in the array
   const updates = itemIds.map((id, index) =>
     db
@@ -537,6 +613,24 @@ export async function sortTemplateItemsByCategory(
 ): Promise<{ success: boolean; error?: string; sortedIds?: string[] }> {
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Verify template belongs to user's family
+  const [tmpl] = await db
+    .select({ id: templates.id })
+    .from(templates)
+    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .limit(1);
+
+  if (!tmpl) return { success: false, error: 'Szablon nie istnieje' };
 
   // Fetch items with category info
   const items = await db
@@ -767,6 +861,16 @@ export async function useTemplate(templateId: string): Promise<{
 
   if (!profile?.familyId)
     return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Verify template belongs to user's family
+  const [tmplCheck] = await db
+    .select({ id: templates.id })
+    .from(templates)
+    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .limit(1);
+
+  if (!tmplCheck)
+    return { success: false, error: 'Szablon nie istnieje' };
 
   const items = await db
     .select({

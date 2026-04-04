@@ -29,6 +29,10 @@ export async function toggleShoppingItem(
     .where(eq(profiles.id, userId))
     .limit(1);
 
+  if (!profile?.familyId) {
+    return { success: false, error: 'Nie należysz do rodziny' };
+  }
+
   await db
     .update(shoppingItems)
     .set({
@@ -36,7 +40,7 @@ export async function toggleShoppingItem(
       checkedBy: isChecked ? userId : null,
       checkedAt: isChecked ? new Date() : null,
     })
-    .where(eq(shoppingItems.id, itemId));
+    .where(and(eq(shoppingItems.id, itemId), eq(shoppingItems.familyId, profile.familyId)));
 
   revalidatePath('/');
   if (profile?.familyId) notifyListUpdate(profile.familyId);
@@ -321,11 +325,11 @@ export async function classifyProduct(
     return { success: false, error: 'Nie należysz do rodziny' };
   }
 
-  // Update the shopping item's category
+  // Update the shopping item's category (scoped to user's family)
   await db
     .update(shoppingItems)
     .set({ categoryId })
-    .where(eq(shoppingItems.id, itemId));
+    .where(and(eq(shoppingItems.id, itemId), eq(shoppingItems.familyId, profile.familyId)));
 
   // Upsert product — teach the system for future auto-categorization
   const [existingProduct] = await db
