@@ -1,8 +1,8 @@
 'use client';
 
 import { useOptimistic, useState, useTransition } from 'react';
-import { Check } from 'lucide-react';
-import { toggleShoppingItem, classifyProduct } from '@/app/(app)/actions';
+import { Check, Minus, Plus } from 'lucide-react';
+import { toggleShoppingItem, classifyProduct, updateQuantity } from '@/app/(app)/actions';
 import { CategoryPicker } from './category-picker';
 
 type CategoryData = {
@@ -43,6 +43,16 @@ function formatRelativeTime(dateStr: string): string {
   });
 }
 
+function getQuantityStep(unit: string): number {
+  if (unit === 'kg' || unit === 'l') return 0.5;
+  if (unit === 'g' || unit === 'ml') return 100;
+  return 1;
+}
+
+function formatQuantity(qty: number): string {
+  return qty % 1 === 0 ? qty.toFixed(0) : qty.toString();
+}
+
 export function ShoppingItem({
   id,
   productName,
@@ -58,14 +68,38 @@ export function ShoppingItem({
   categories,
 }: ShoppingItemProps) {
   const [isPending, startTransition] = useTransition();
+  const [isQtyPending, startQtyTransition] = useTransition();
   const [optimisticChecked, setOptimisticChecked] = useOptimistic(isChecked);
+  const [optimisticQuantity, setOptimisticQuantity] = useOptimistic(quantity);
   const [classifyError, setClassifyError] = useState<string | null>(null);
+
+  const step = getQuantityStep(unit);
+  const minQuantity = step;
 
   const handleToggle = () => {
     const newChecked = !optimisticChecked;
     startTransition(async () => {
       setOptimisticChecked(newChecked);
       await toggleShoppingItem(id, newChecked);
+    });
+  };
+
+  const handleIncrement = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newQty = parseFloat((optimisticQuantity + step).toFixed(2));
+    startQtyTransition(async () => {
+      setOptimisticQuantity(newQty);
+      await updateQuantity(id, newQty);
+    });
+  };
+
+  const handleDecrement = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (optimisticQuantity <= minQuantity) return;
+    const newQty = parseFloat(Math.max(minQuantity, optimisticQuantity - step).toFixed(2));
+    startQtyTransition(async () => {
+      setOptimisticQuantity(newQty);
+      await updateQuantity(id, newQty);
     });
   };
 
@@ -130,27 +164,51 @@ export function ShoppingItem({
           )}
         </div>
 
-        {/* Product name + quantity/unit */}
-        <span className="flex flex-1 items-baseline gap-2">
-          <span
-            className={`text-base transition-all duration-150 ${
-              optimisticChecked
-                ? 'text-text-disabled line-through'
-                : 'text-text-primary'
-            }`}
-          >
-            {productName}
-          </span>
-          {(quantity !== 1 || unit !== 'szt') && (
-            <span
-              className={`text-sm transition-all duration-150 ${
-                optimisticChecked ? 'text-text-disabled line-through' : 'text-text-tertiary'
-              }`}
-            >
-              {quantity % 1 === 0 ? quantity.toFixed(0) : quantity.toString()} {unit}
-            </span>
-          )}
+        {/* Product name */}
+        <span
+          className={`flex-1 text-base transition-all duration-150 ${
+            optimisticChecked
+              ? 'text-text-disabled line-through'
+              : 'text-text-primary'
+          }`}
+        >
+          {productName}
         </span>
+
+        {/* Quantity controls (hidden when checked) */}
+        {!optimisticChecked ? (
+          <div
+            className={`flex shrink-0 items-center gap-1 ${isQtyPending ? 'opacity-60' : ''}`}
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={handleDecrement}
+              disabled={optimisticQuantity <= minQuantity}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-mint-500 transition-colors hover:bg-mint-100 active:bg-mint-200 disabled:text-text-disabled"
+              aria-label="Zmniejsz ilość"
+            >
+              <Minus size={13} strokeWidth={2.5} />
+            </button>
+            <span className="min-w-[3.5rem] text-center text-sm text-text-secondary">
+              {formatQuantity(optimisticQuantity)} {unit}
+            </span>
+            <button
+              onClick={handleIncrement}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-mint-500 transition-colors hover:bg-mint-100 active:bg-mint-200"
+              aria-label="Zwiększ ilość"
+            >
+              <Plus size={13} strokeWidth={2.5} />
+            </button>
+          </div>
+        ) : (
+          /* Show quantity as plain text when checked */
+          (quantity !== 1 || unit !== 'szt') && (
+            <span className="shrink-0 text-sm text-text-disabled line-through">
+              {formatQuantity(quantity)} {unit}
+            </span>
+          )
+        )}
 
         {/* Meta info */}
         <span className="shrink-0 text-xs text-text-tertiary">{metaInfo}</span>
