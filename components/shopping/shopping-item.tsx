@@ -145,7 +145,7 @@ export function ShoppingItem({
             handleToggle();
           }
         }}
-        className="flex min-h-[52px] cursor-pointer select-none items-center gap-3 px-4 py-3.5"
+        className="flex min-h-[52px] cursor-pointer select-none items-center gap-3 px-4 py-3"
       >
         {/* Checkbox */}
         <div
@@ -164,54 +164,57 @@ export function ShoppingItem({
           )}
         </div>
 
-        {/* Product name */}
-        <span
-          className={`flex-1 text-base transition-all duration-150 ${
-            optimisticChecked
-              ? 'text-text-disabled line-through'
-              : 'text-text-primary'
-          }`}
-        >
-          {productName}
-        </span>
-
-        {/* Quantity controls (hidden when checked) */}
-        {!optimisticChecked ? (
-          <div
-            className={`flex shrink-0 items-center gap-1 ${isQtyPending ? 'opacity-60' : ''}`}
-            onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={handleDecrement}
-              disabled={optimisticQuantity <= minQuantity}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-mint-500 transition-colors hover:bg-mint-100 active:bg-mint-200 disabled:text-text-disabled"
-              aria-label="Zmniejsz ilość"
+        {/* Content: name + meta on left, qty controls on right */}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          {/* Name + meta info stacked */}
+          <div className="flex min-w-0 flex-1 flex-col justify-center">
+            <span
+              className={`truncate text-base transition-all duration-150 ${
+                optimisticChecked
+                  ? 'text-text-disabled line-through'
+                  : 'text-text-primary'
+              }`}
             >
-              <Minus size={13} strokeWidth={2.5} />
-            </button>
-            <span className="min-w-[3.5rem] text-center text-sm text-text-secondary">
-              {formatQuantity(optimisticQuantity)} {unit}
+              {productName}
             </span>
-            <button
-              onClick={handleIncrement}
-              className="flex h-7 w-7 items-center justify-center rounded-full text-mint-500 transition-colors hover:bg-mint-100 active:bg-mint-200"
-              aria-label="Zwiększ ilość"
-            >
-              <Plus size={13} strokeWidth={2.5} />
-            </button>
+            <span className="truncate text-xs text-text-tertiary">{metaInfo}</span>
           </div>
-        ) : (
-          /* Show quantity as plain text when checked */
-          (quantity !== 1 || unit !== 'szt') && (
-            <span className="shrink-0 text-sm text-text-disabled line-through">
-              {formatQuantity(quantity)} {unit}
-            </span>
-          )
-        )}
 
-        {/* Meta info */}
-        <span className="shrink-0 text-xs text-text-tertiary">{metaInfo}</span>
+          {/* Quantity controls (hidden when checked) */}
+          {!optimisticChecked ? (
+            <div
+              className={`flex shrink-0 items-center gap-1 ${isQtyPending ? 'opacity-60' : ''}`}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => e.stopPropagation()}
+            >
+              <button
+                onClick={handleDecrement}
+                disabled={optimisticQuantity <= minQuantity}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-mint-500 transition-colors hover:bg-mint-100 active:bg-mint-200 disabled:text-text-disabled"
+                aria-label="Zmniejsz ilość"
+              >
+                <Minus size={13} strokeWidth={2.5} />
+              </button>
+              <span className="min-w-[3.5rem] text-center text-sm text-text-secondary">
+                {formatQuantity(optimisticQuantity)} {unit}
+              </span>
+              <button
+                onClick={handleIncrement}
+                className="flex h-7 w-7 items-center justify-center rounded-full text-mint-500 transition-colors hover:bg-mint-100 active:bg-mint-200"
+                aria-label="Zwiększ ilość"
+              >
+                <Plus size={13} strokeWidth={2.5} />
+              </button>
+            </div>
+          ) : (
+            /* Show quantity as plain text when checked */
+            (quantity !== 1 || unit !== 'szt') && (
+              <span className="shrink-0 text-sm text-text-disabled line-through">
+                {formatQuantity(quantity)} {unit}
+              </span>
+            )
+          )}
+        </div>
       </div>
 
       {/* Category picker for uncategorized items */}
