@@ -1,4 +1,5 @@
 import {
+  Amphora,
   Apple,
   Milk,
   Croissant,
@@ -20,6 +21,7 @@ import {
 } from 'lucide-react';
 
 const CATEGORY_ICON_MAP: Record<string, LucideIcon> = {
+  Amphora,
   Apple,
   Milk,
   Croissant,

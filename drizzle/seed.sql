@@ -1,6 +1,6 @@
 -- =============================================================================
 -- Cartlo — Seed Data (idempotent — safe to re-run)
--- 16 default categories + ~160 global products
+-- 17 default categories + ~170 global products
 -- =============================================================================
 
 -- -----------------------------------------------------------------------------
@@ -20,10 +20,11 @@ INSERT INTO public.categories (id, name, icon, sort_order, is_default, family_id
   ('a0000000-0000-0000-0000-000000000014', 'Oleje',                'Droplets',    10, true, NULL),
   ('a0000000-0000-0000-0000-000000000015', 'Mąki i sypkie składniki', 'Wheat',   11, true, NULL),
   ('a0000000-0000-0000-0000-000000000016', 'Kasze i makarony',    'Bean',        12, true, NULL),
-  ('a0000000-0000-0000-0000-000000000010', 'Chemia domowa',        'SprayConical', 13, true, NULL),
-  ('a0000000-0000-0000-0000-000000000011', 'Higiena',              'ShowerHead',  14, true, NULL),
-  ('a0000000-0000-0000-0000-000000000012', 'Artykuły domowe',      'Home',        15, true, NULL),
-  ('a0000000-0000-0000-0000-000000000013', 'Inne',                 'Package',     16, true, NULL)
+  ('a0000000-0000-0000-0000-000000000017', 'Przetwory',            'Amphora',     13, true, NULL),
+  ('a0000000-0000-0000-0000-000000000010', 'Chemia domowa',        'SprayConical', 14, true, NULL),
+  ('a0000000-0000-0000-0000-000000000011', 'Higiena',              'ShowerHead',  15, true, NULL),
+  ('a0000000-0000-0000-0000-000000000012', 'Artykuły domowe',      'Home',        16, true, NULL),
+  ('a0000000-0000-0000-0000-000000000013', 'Inne',                 'Package',     17, true, NULL)
 ON CONFLICT (id) DO UPDATE SET
   name       = EXCLUDED.name,
   icon       = EXCLUDED.icon,
@@ -209,6 +210,22 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Makaron ryżowy',   'a0000000-0000-0000-0000-000000000016', NULL, 0),
   ('Makaron lasagne',  'a0000000-0000-0000-0000-000000000016', NULL, 0),
   ('Makaron nitki',    'a0000000-0000-0000-0000-000000000016', NULL, 0)
+ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+
+-- Przetwory
+INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
+  ('Ogórki konserwowe',  'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Kukurydza w puszce', 'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Groszek w puszce',   'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Fasola w puszce',    'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Pomidory w puszce',  'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Koncentrat pomidorowy', 'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Dżem',               'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Miód',               'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Oliwki',             'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Kapary',             'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Marynowane papryki', 'a0000000-0000-0000-0000-000000000017', NULL, 0),
+  ('Kompot',             'a0000000-0000-0000-0000-000000000017', NULL, 0)
 ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Chemia domowa

@@ -45,6 +45,7 @@ const CATEGORY_UNIT_MAP: Record<string, string> = {
   Beef: 'g',
   Fish: 'g',
   // Piece-based (default)
+  Amphora: 'szt',
   Apple: 'szt',
   Milk: 'szt',
   Croissant: 'szt',
