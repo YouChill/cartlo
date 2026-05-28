@@ -40,7 +40,12 @@ export async function toggleShoppingItem(
       checkedBy: isChecked ? userId : null,
       checkedAt: isChecked ? new Date() : null,
     })
-    .where(and(eq(shoppingItems.id, itemId), eq(shoppingItems.familyId, profile.familyId)));
+    .where(
+      and(
+        eq(shoppingItems.id, itemId),
+        eq(shoppingItems.familyId, profile.familyId),
+      ),
+    );
 
   revalidatePath('/');
   if (profile?.familyId) notifyListUpdate(profile.familyId);
@@ -174,6 +179,10 @@ export async function addProduct(
     return { success: false, error: 'Nazwa produktu nie może być pusta' };
   }
 
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return { success: false, error: 'Ilość musi być większa od 0' };
+  }
+
   const userId = await getCurrentUserId();
   if (!userId) {
     return { success: false, error: 'Nie jesteś zalogowany' };
@@ -279,7 +288,9 @@ export async function addProduct(
         // Save embedding for the new product (non-blocking)
         if (isEmbeddingConfigured() && newProduct) {
           if (productEmbedding) {
-            saveProductEmbedding(newProduct.id, productEmbedding).catch(() => {});
+            saveProductEmbedding(newProduct.id, productEmbedding).catch(
+              () => {},
+            );
           } else {
             upsertProductEmbedding(newProduct.id, trimmed).catch(() => {});
           }
@@ -329,7 +340,12 @@ export async function classifyProduct(
   await db
     .update(shoppingItems)
     .set({ categoryId })
-    .where(and(eq(shoppingItems.id, itemId), eq(shoppingItems.familyId, profile.familyId)));
+    .where(
+      and(
+        eq(shoppingItems.id, itemId),
+        eq(shoppingItems.familyId, profile.familyId),
+      ),
+    );
 
   // Upsert product — teach the system for future auto-categorization
   const [existingProduct] = await db
@@ -403,13 +419,22 @@ export async function updateQuantity(
     .where(eq(profiles.id, userId))
     .limit(1);
 
+  if (!profile?.familyId) {
+    return { success: false, error: 'Nie należysz do rodziny' };
+  }
+
   await db
     .update(shoppingItems)
     .set({ quantity: newQuantity.toString() })
-    .where(eq(shoppingItems.id, itemId));
+    .where(
+      and(
+        eq(shoppingItems.id, itemId),
+        eq(shoppingItems.familyId, profile.familyId),
+      ),
+    );
 
   revalidatePath('/');
-  if (profile?.familyId) notifyListUpdate(profile.familyId);
+  notifyListUpdate(profile.familyId);
   return { success: true };
 }
 

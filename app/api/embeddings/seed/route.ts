@@ -13,8 +13,14 @@ import { seedMissingEmbeddings, isEmbeddingConfigured } from '@/lib/embeddings';
  */
 export async function POST(request: NextRequest) {
   // Only allow seed endpoint in development or when explicitly enabled
-  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SEED !== 'true') {
-    return NextResponse.json({ error: 'Seed endpoint is disabled in production' }, { status: 403 });
+  if (
+    process.env.NODE_ENV === 'production' &&
+    process.env.ALLOW_SEED !== 'true'
+  ) {
+    return NextResponse.json(
+      { error: 'Seed endpoint is disabled in production' },
+      { status: 403 },
+    );
   }
 
   // Protect with AUTH_SECRET

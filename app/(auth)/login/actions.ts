@@ -112,12 +112,19 @@ export async function register(
     })
     .returning({ id: users.id });
 
-  // Create profile
+  // Create profile. neon-http has no interactive transactions, so on failure
+  // we compensate by removing the just-created user to avoid an orphaned
+  // account that could never sign in or re-register.
   const displayName = normalizedEmail.split('@')[0];
-  await db.insert(profiles).values({
-    id: newUser.id,
-    displayName,
-  });
+  try {
+    await db.insert(profiles).values({
+      id: newUser.id,
+      displayName,
+    });
+  } catch {
+    await db.delete(users).where(eq(users.id, newUser.id));
+    return { error: 'Nie udało się utworzyć konta. Spróbuj ponownie.' };
+  }
 
   // Sign in immediately
   try {

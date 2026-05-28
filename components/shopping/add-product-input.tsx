@@ -123,7 +123,12 @@ export function AddProductInput() {
     // Reset quantity to sensible default when switching unit type
     if ((newUnit === 'g' || newUnit === 'ml') && quantity < 50) {
       setQuantity(50);
-    } else if (newUnit !== 'g' && newUnit !== 'ml' && quantity >= 50 && (unit === 'g' || unit === 'ml')) {
+    } else if (
+      newUnit !== 'g' &&
+      newUnit !== 'ml' &&
+      quantity >= 50 &&
+      (unit === 'g' || unit === 'ml')
+    ) {
       setQuantity(1);
     }
   };
@@ -262,9 +267,7 @@ export function AddProductInput() {
         </div>
       </div>
 
-      {error && (
-        <p className="mt-1.5 px-1 text-xs text-error-text">{error}</p>
-      )}
+      {error && <p className="mt-1.5 px-1 text-xs text-error-text">{error}</p>}
 
       {/* Autocomplete dropdown */}
       {showDropdown && totalItems > 0 && (

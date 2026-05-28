@@ -2,7 +2,7 @@ import { redirect } from 'next/navigation';
 import { eq, or, isNull, asc } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { profiles, shoppingItems, categories, } from '@/lib/db/schema';
+import { profiles, shoppingItems, categories } from '@/lib/db/schema';
 import { ShoppingList } from '@/components/shopping/shopping-list';
 
 export default async function ListPage() {

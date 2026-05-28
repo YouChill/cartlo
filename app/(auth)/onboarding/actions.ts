@@ -69,11 +69,22 @@ export async function createFamily(
     };
   }
 
-  // Update profile: assign family_id and display_name
-  await db
-    .update(profiles)
-    .set({ familyId: family.id, displayName })
-    .where(eq(profiles.id, userId));
+  // Update profile: assign family_id and display_name. neon-http has no
+  // interactive transactions, so on failure we remove the just-created family
+  // to avoid leaving an empty, orphaned family behind.
+  try {
+    await db
+      .update(profiles)
+      .set({ familyId: family.id, displayName })
+      .where(eq(profiles.id, userId));
+  } catch {
+    await db.delete(families).where(eq(families.id, family.id));
+    return {
+      error: 'Nie udało się utworzyć rodziny. Spróbuj ponownie.',
+      inviteCode: null,
+      familyName: null,
+    };
+  }
 
   return {
     error: null,

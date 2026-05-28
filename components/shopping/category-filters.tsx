@@ -19,7 +19,8 @@ export function CategoryFilters({
   onFilterChange,
   uncategorizedCount,
 }: CategoryFiltersProps) {
-  const totalCount = categories.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
+  const totalCount =
+    categories.reduce((sum, c) => sum + c.count, 0) + uncategorizedCount;
 
   return (
     <div className="px-4 pb-3 pt-2">

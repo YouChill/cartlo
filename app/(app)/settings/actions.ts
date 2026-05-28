@@ -2,11 +2,17 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { eq, and, or, isNull, ilike, asc, desc, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, desc, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { signOut as authSignOut, getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { profiles, users, products, categories, shoppingItems } from '@/lib/db/schema';
+import {
+  profiles,
+  users,
+  products,
+  categories,
+  shoppingItems,
+} from '@/lib/db/schema';
 
 // ---------------------------------------------------------------------------
 // Sign out
@@ -42,10 +48,7 @@ export async function updateDisplayName(
   const userId = await getCurrentUserId();
   if (!userId) redirect('/login');
 
-  await db
-    .update(profiles)
-    .set({ displayName })
-    .where(eq(profiles.id, userId));
+  await db.update(profiles).set({ displayName }).where(eq(profiles.id, userId));
 
   revalidatePath('/', 'layout');
   return { error: null, success: true };
@@ -108,6 +111,17 @@ export async function changePassword(
 // ---------------------------------------------------------------------------
 // Send invite email
 // ---------------------------------------------------------------------------
+
+/** Escape user-controlled values before interpolating into HTML email markup. */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export type InviteEmailState = {
   error: string | null;
   success: boolean;
@@ -156,7 +170,8 @@ export async function sendInviteEmail(
   const smtpPass = process.env.SMTP_PASS;
   if (!smtpUser || !smtpPass) {
     return {
-      error: 'Wysyłanie emaili nie jest skonfigurowane. Użyj linku zaproszenia.',
+      error:
+        'Wysyłanie emaili nie jest skonfigurowane. Użyj linku zaproszenia.',
       success: false,
     };
   }
@@ -167,6 +182,8 @@ export async function sendInviteEmail(
       ? `https://${process.env.VERCEL_URL}`
       : 'http://localhost:3000');
   const inviteLink = `${baseUrl}/join/${family.inviteCode}`;
+  const safeFamilyName = escapeHtml(family.name);
+  const safeDisplayName = escapeHtml(profile.displayName);
 
   try {
     const nodemailer = await import('nodemailer');
@@ -186,9 +203,9 @@ export async function sendInviteEmail(
       subject: `${profile.displayName} zaprasza Cię do rodziny "${family.name}" w Cartlo`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 16px;">
-          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dołącz do rodziny "${family.name}"</h2>
+          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dołącz do rodziny "${safeFamilyName}"</h2>
           <p style="color: #6b6b6b; font-size: 15px; line-height: 1.6;">
-            ${profile.displayName} zaprasza Cię do wspólnej listy zakupów w <strong>Cartlo</strong>.
+            ${safeDisplayName} zaprasza Cię do wspólnej listy zakupów w <strong>Cartlo</strong>.
           </p>
           <a href="${inviteLink}"
              style="display: inline-block; margin-top: 16px; padding: 12px 24px;
@@ -253,7 +270,10 @@ export async function searchProductsForSettings(
       .where(
         and(
           ilike(products.name, `%${trimmed}%`),
-          or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+          or(
+            isNull(products.familyId),
+            eq(products.familyId, profile.familyId),
+          ),
         ),
       )
       .orderBy(desc(products.usageCount))
@@ -275,7 +295,7 @@ export async function searchProductsForSettings(
           icon: categories.icon,
         })
         .from(categories)
-        .where(sql`${categories.id} IN ${categoryIds}`);
+        .where(inArray(categories.id, categoryIds));
 
       for (const c of cats) {
         categoryMap[c.id] = { name: c.name, icon: c.icon };
@@ -286,8 +306,12 @@ export async function searchProductsForSettings(
       id: p.id,
       name: p.name,
       categoryId: p.categoryId,
-      categoryName: p.categoryId ? (categoryMap[p.categoryId]?.name ?? null) : null,
-      categoryIcon: p.categoryId ? (categoryMap[p.categoryId]?.icon ?? null) : null,
+      categoryName: p.categoryId
+        ? (categoryMap[p.categoryId]?.name ?? null)
+        : null,
+      categoryIcon: p.categoryId
+        ? (categoryMap[p.categoryId]?.icon ?? null)
+        : null,
     }));
   } catch (error) {
     console.error('searchProductsForSettings error:', error);
@@ -312,16 +336,24 @@ export async function updateProductCategory(
       .where(eq(profiles.id, userId))
       .limit(1);
 
-    if (!profile?.familyId) return { success: false, error: 'Nie należysz do rodziny' };
+    if (!profile?.familyId)
+      return { success: false, error: 'Nie należysz do rodziny' };
 
     // Get product to verify access and get name
     const [product] = await db
-      .select({ id: products.id, name: products.name, familyId: products.familyId })
+      .select({
+        id: products.id,
+        name: products.name,
+        familyId: products.familyId,
+      })
       .from(products)
       .where(
         and(
           eq(products.id, productId),
-          or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+          or(
+            isNull(products.familyId),
+            eq(products.familyId, profile.familyId),
+          ),
         ),
       )
       .limit(1);

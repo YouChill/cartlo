@@ -2,7 +2,11 @@
 
 import { useOptimistic, useState, useTransition } from 'react';
 import { Check, Minus, Plus } from 'lucide-react';
-import { toggleShoppingItem, classifyProduct, updateQuantity } from '@/app/(app)/actions';
+import {
+  toggleShoppingItem,
+  classifyProduct,
+  updateQuantity,
+} from '@/app/(app)/actions';
 import { CategoryPicker } from './category-picker';
 
 type CategoryData = {
@@ -96,7 +100,9 @@ export function ShoppingItem({
   const handleDecrement = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (optimisticQuantity <= minQuantity) return;
-    const newQty = parseFloat(Math.max(minQuantity, optimisticQuantity - step).toFixed(2));
+    const newQty = parseFloat(
+      Math.max(minQuantity, optimisticQuantity - step).toFixed(2),
+    );
     startQtyTransition(async () => {
       setOptimisticQuantity(newQty);
       await updateQuantity(id, newQty);

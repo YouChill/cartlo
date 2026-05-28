@@ -1,7 +1,7 @@
 import OpenAI from 'openai';
 import { db } from '@/lib/db';
 import { products } from '@/lib/db/schema';
-import { eq, and, or, isNull, isNotNull, sql } from 'drizzle-orm';
+import { isNull, sql } from 'drizzle-orm';
 
 // ---------------------------------------------------------------------------
 // OpenAI client (lazy singleton)

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { sql } from 'drizzle-orm';
-import { isEmbeddingConfigured, generateEmbedding, findSimilarProducts } from '@/lib/embeddings';
+import {
+  isEmbeddingConfigured,
+  generateEmbedding,
+  findSimilarProducts,
+} from '@/lib/embeddings';
 
 /**
  * GET /api/embeddings/test
@@ -43,7 +47,8 @@ export async function GET(request: NextRequest) {
     report.embedding_column_exists = true;
   } catch (err) {
     report.embedding_column_exists = false;
-    report.embedding_column_error = err instanceof Error ? err.message : String(err);
+    report.embedding_column_error =
+      err instanceof Error ? err.message : String(err);
   }
 
   // 4. Count products with and without embeddings
@@ -55,13 +60,19 @@ export async function GET(request: NextRequest) {
       sql`SELECT COUNT(*)::int AS with_embedding FROM products WHERE embedding IS NOT NULL`,
     );
     report.products_total = totalResult.rows[0]?.total ?? 0;
-    report.products_with_embedding = withEmbeddingResult.rows[0]?.with_embedding ?? 0;
+    report.products_with_embedding =
+      withEmbeddingResult.rows[0]?.with_embedding ?? 0;
   } catch (err) {
-    report.products_count_error = err instanceof Error ? err.message : String(err);
+    report.products_count_error =
+      err instanceof Error ? err.message : String(err);
   }
 
   // 5. Test live embedding generation + similarity search (only if everything looks good)
-  if (report.openai_key_configured && report.pgvector_installed && report.embedding_column_exists) {
+  if (
+    report.openai_key_configured &&
+    report.pgvector_installed &&
+    report.embedding_column_exists
+  ) {
     try {
       const testEmbedding = await generateEmbedding('mleko');
       report.embedding_generation = 'ok';

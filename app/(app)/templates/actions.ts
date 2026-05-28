@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq, and, asc, desc, or, isNull, ilike, sql } from 'drizzle-orm';
+import { eq, and, asc, desc, or, isNull, ilike, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
 import {
@@ -58,9 +58,7 @@ const CATEGORY_UNIT_MAP: Record<string, string> = {
   Package: 'szt',
 };
 
-function getDefaultUnitForCategory(
-  categoryIcon: string | null,
-): string {
+function getDefaultUnitForCategory(categoryIcon: string | null): string {
   if (!categoryIcon) return 'szt';
   return CATEGORY_UNIT_MAP[categoryIcon] ?? 'szt';
 }
@@ -111,7 +109,7 @@ export async function getTemplates(): Promise<TemplateData[]> {
       sort_order: templateItems.sortOrder,
     })
     .from(templateItems)
-    .where(sql`${templateItems.templateId} IN ${templateIds}`)
+    .where(inArray(templateItems.templateId, templateIds))
     .orderBy(asc(templateItems.sortOrder));
 
   const categoryIds = [
@@ -127,7 +125,7 @@ export async function getTemplates(): Promise<TemplateData[]> {
         icon: categories.icon,
       })
       .from(categories)
-      .where(sql`${categories.id} IN ${categoryIds}`);
+      .where(inArray(categories.id, categoryIds));
     cats.forEach((c) => {
       categoryMap[c.id] = { name: c.name, icon: c.icon };
     });
@@ -205,7 +203,12 @@ export async function deleteTemplate(
 
   const result = await db
     .delete(templates)
-    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .returning({ id: templates.id });
 
   if (result.length === 0)
@@ -238,7 +241,12 @@ export async function renameTemplate(
   const result = await db
     .update(templates)
     .set({ name: trimmed })
-    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .returning({ id: templates.id });
 
   if (result.length === 0)
@@ -267,11 +275,15 @@ export async function duplicateTemplate(
   const [source] = await db
     .select({ id: templates.id, name: templates.name })
     .from(templates)
-    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .limit(1);
 
-  if (!source)
-    return { success: false, error: 'Szablon nie istnieje' };
+  if (!source) return { success: false, error: 'Szablon nie istnieje' };
 
   // Create copy
   const [newTemplate] = await db
@@ -330,9 +342,13 @@ export async function duplicateTemplate(
   const categoryMap: Record<string, { name: string; icon: string }> = {};
   if (categoryIds.length > 0) {
     const cats = await db
-      .select({ id: categories.id, name: categories.name, icon: categories.icon })
+      .select({
+        id: categories.id,
+        name: categories.name,
+        icon: categories.icon,
+      })
       .from(categories)
-      .where(sql`${categories.id} IN ${categoryIds}`);
+      .where(inArray(categories.id, categoryIds));
     cats.forEach((c) => {
       categoryMap[c.id] = { name: c.name, icon: c.icon };
     });
@@ -384,32 +400,47 @@ export async function addTemplateItem(
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Verify the template belongs to the user's family before inserting
+  const [tmpl] = await db
+    .select({ id: templates.id })
+    .from(templates)
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
+    .limit(1);
+
+  if (!tmpl) return { success: false, error: 'Szablon nie istnieje' };
+
   let resolvedCategoryId = categoryId ?? null;
   let categoryIcon: string | null = null;
 
   if (categoryId === undefined) {
-    const [profile] = await db
-      .select({ familyId: profiles.familyId })
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-
-    if (profile?.familyId) {
-      const [knownProduct] = await db
-        .select({ categoryId: products.categoryId })
-        .from(products)
-        .where(
-          and(
-            ilike(products.name, trimmed),
-            or(
-              isNull(products.familyId),
-              eq(products.familyId, profile.familyId),
-            ),
+    const [knownProduct] = await db
+      .select({ categoryId: products.categoryId })
+      .from(products)
+      .where(
+        and(
+          ilike(products.name, trimmed),
+          or(
+            isNull(products.familyId),
+            eq(products.familyId, profile.familyId),
           ),
-        )
-        .limit(1);
-      resolvedCategoryId = knownProduct?.categoryId ?? null;
-    }
+        ),
+      )
+      .limit(1);
+    resolvedCategoryId = knownProduct?.categoryId ?? null;
   }
 
   // Resolve category icon for default unit detection
@@ -469,7 +500,12 @@ export async function removeTemplateItem(
     .select({ id: templateItems.id })
     .from(templateItems)
     .innerJoin(templates, eq(templateItems.templateId, templates.id))
-    .where(and(eq(templateItems.id, itemId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templateItems.id, itemId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .limit(1);
 
   if (!item) return { success: false, error: 'Element nie istnieje' };
@@ -506,7 +542,12 @@ export async function updateTemplateItem(
     .select({ id: templateItems.id })
     .from(templateItems)
     .innerJoin(templates, eq(templateItems.templateId, templates.id))
-    .where(and(eq(templateItems.id, itemId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templateItems.id, itemId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .limit(1);
 
   if (!item) return { success: false, error: 'Element nie istnieje' };
@@ -589,7 +630,12 @@ export async function reorderTemplateItems(
   const [template] = await db
     .select({ id: templates.id })
     .from(templates)
-    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .limit(1);
 
   if (!template) return { success: false, error: 'Szablon nie istnieje' };
@@ -599,7 +645,9 @@ export async function reorderTemplateItems(
     db
       .update(templateItems)
       .set({ sortOrder: index })
-      .where(and(eq(templateItems.id, id), eq(templateItems.templateId, templateId))),
+      .where(
+        and(eq(templateItems.id, id), eq(templateItems.templateId, templateId)),
+      ),
   );
 
   await Promise.all(updates);
@@ -627,7 +675,12 @@ export async function sortTemplateItemsByCategory(
   const [tmpl] = await db
     .select({ id: templates.id })
     .from(templates)
-    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .limit(1);
 
   if (!tmpl) return { success: false, error: 'Szablon nie istnieje' };
@@ -658,7 +711,7 @@ export async function sortTemplateItemsByCategory(
         sortOrder: categories.sortOrder,
       })
       .from(categories)
-      .where(sql`${categories.id} IN ${categoryIds}`);
+      .where(inArray(categories.id, categoryIds));
     cats.forEach((c) => {
       categoryMap[c.id] = { sortOrder: c.sortOrder, name: c.name };
     });
@@ -719,7 +772,10 @@ export async function importTemplate(
     return { success: false, error: 'Nazwa szablonu nie może być pusta' };
 
   if (!Array.isArray(payload.items) || payload.items.length === 0)
-    return { success: false, error: 'Szablon musi zawierać przynajmniej jeden produkt' };
+    return {
+      success: false,
+      error: 'Szablon musi zawierać przynajmniej jeden produkt',
+    };
 
   const validUnits = new Set(['szt', 'g', 'kg', 'ml', 'l']);
 
@@ -746,12 +802,23 @@ export async function importTemplate(
       ),
     );
 
-  const categoryByName: Record<string, { id: string; name: string; icon: string }> = {};
+  const categoryByName: Record<
+    string,
+    { id: string; name: string; icon: string }
+  > = {};
   allCategories.forEach((c) => {
     // Index by both the original name and the diacritic-stripped version
     // so imports work regardless of whether names use Polish characters or not.
-    categoryByName[c.name.toLowerCase()] = { id: c.id, name: c.name, icon: c.icon };
-    categoryByName[removeDiacritics(c.name).toLowerCase()] = { id: c.id, name: c.name, icon: c.icon };
+    categoryByName[c.name.toLowerCase()] = {
+      id: c.id,
+      name: c.name,
+      icon: c.icon,
+    };
+    categoryByName[removeDiacritics(c.name).toLowerCase()] = {
+      id: c.id,
+      name: c.name,
+      icon: c.icon,
+    };
   });
 
   // Create template
@@ -761,29 +828,31 @@ export async function importTemplate(
     .returning({ id: templates.id, createdAt: templates.createdAt });
 
   // Insert items
-  const itemsToInsert = payload.items.map((item, index) => {
-    const productName = item.product_name?.trim();
-    if (!productName) return null;
+  const itemsToInsert = payload.items
+    .map((item, index) => {
+      const productName = item.product_name?.trim();
+      if (!productName) return null;
 
-    // Try exact match first, then diacritic-stripped match
-    const matchedCategory = item.category
-      ? categoryByName[item.category.toLowerCase()]
-        ?? categoryByName[removeDiacritics(item.category).toLowerCase()]
-        ?? null
-      : null;
+      // Try exact match first, then diacritic-stripped match
+      const matchedCategory = item.category
+        ? (categoryByName[item.category.toLowerCase()] ??
+          categoryByName[removeDiacritics(item.category).toLowerCase()] ??
+          null)
+        : null;
 
-    const unit = item.unit && validUnits.has(item.unit) ? item.unit : 'szt';
-    const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
+      const unit = item.unit && validUnits.has(item.unit) ? item.unit : 'szt';
+      const quantity = item.quantity && item.quantity > 0 ? item.quantity : 1;
 
-    return {
-      templateId: template.id,
-      productName,
-      categoryId: matchedCategory?.id ?? null,
-      quantity: quantity.toString(),
-      unit,
-      sortOrder: index,
-    };
-  }).filter(Boolean) as {
+      return {
+        templateId: template.id,
+        productName,
+        categoryId: matchedCategory?.id ?? null,
+        quantity: quantity.toString(),
+        unit,
+        sortOrder: index,
+      };
+    })
+    .filter(Boolean) as {
     templateId: string;
     productName: string;
     categoryId: string | null;
@@ -866,11 +935,15 @@ export async function useTemplate(templateId: string): Promise<{
   const [tmplCheck] = await db
     .select({ id: templates.id })
     .from(templates)
-    .where(and(eq(templates.id, templateId), eq(templates.familyId, profile.familyId)))
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
     .limit(1);
 
-  if (!tmplCheck)
-    return { success: false, error: 'Szablon nie istnieje' };
+  if (!tmplCheck) return { success: false, error: 'Szablon nie istnieje' };
 
   const items = await db
     .select({
@@ -911,21 +984,17 @@ export async function useTemplate(templateId: string): Promise<{
     };
   }
 
-  // Format product name with quantity if > 1
+  // Carry over quantity/unit into their dedicated columns so the list UI can
+  // render and edit them (rather than baking them into the product name).
   await db.insert(shoppingItems).values(
-    toInsert.map((item) => {
-      const qty = parseFloat(item.quantity);
-      const displayName =
-        qty > 1 || item.unit !== 'szt'
-          ? `${item.productName} (${qty % 1 === 0 ? qty.toFixed(0) : qty} ${item.unit})`
-          : item.productName;
-      return {
-        familyId: profile.familyId!,
-        productName: displayName,
-        categoryId: item.categoryId,
-        addedBy: userId,
-      };
-    }),
+    toInsert.map((item) => ({
+      familyId: profile.familyId!,
+      productName: item.productName,
+      categoryId: item.categoryId,
+      quantity: item.quantity,
+      unit: item.unit,
+      addedBy: userId,
+    })),
   );
 
   revalidatePath('/');

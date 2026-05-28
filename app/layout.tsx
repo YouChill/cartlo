@@ -46,7 +46,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${nunito.variable} overflow-x-hidden font-sans antialiased`}>
+      <body
+        className={`${nunito.variable} overflow-x-hidden font-sans antialiased`}
+      >
         {children}
         <script
           dangerouslySetInnerHTML={{

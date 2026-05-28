@@ -232,7 +232,10 @@ export function TemplatesList({
     setTemplatesList((prev) => [...prev, newTemplate]);
   };
 
-  const handleReorderItems = (templateId: string, items: TemplateItemData[]) => {
+  const handleReorderItems = (
+    templateId: string,
+    items: TemplateItemData[],
+  ) => {
     setTemplatesList((prev) =>
       prev.map((t) => (t.id === templateId ? { ...t, items } : t)),
     );
@@ -344,9 +347,7 @@ export function TemplatesList({
               handleEditItem(template.id, itemId, updatedItem)
             }
             onDuplicate={handleDuplicateTemplate}
-            onReorderItems={(items) =>
-              handleReorderItems(template.id, items)
-            }
+            onReorderItems={(items) => handleReorderItems(template.id, items)}
           />
         ))}
       </div>
@@ -925,9 +926,10 @@ function TemplateItemRow({
     const newQty = Math.max(0.5, item.quantity + delta);
     // Determine step based on unit
     const step = item.unit === 'g' || item.unit === 'ml' ? 50 : 1;
-    const adjusted = item.unit === 'g' || item.unit === 'ml'
-      ? Math.max(step, item.quantity + delta * step)
-      : Math.max(0.5, item.quantity + delta);
+    const adjusted =
+      item.unit === 'g' || item.unit === 'ml'
+        ? Math.max(step, item.quantity + delta * step)
+        : Math.max(0.5, item.quantity + delta);
 
     onEdit({ quantity: adjusted });
     startTransition(async () => {
