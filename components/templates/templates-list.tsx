@@ -1117,7 +1117,7 @@ function AddTemplateItemInput({
     }
     debounceRef.current = setTimeout(async () => {
       const results = await searchProducts(trimmed);
-      setSuggestions(results);
+      setSuggestions(results.suggestions);
       setShowDropdown(true);
       setSelectedIndex(-1);
     }, 200);

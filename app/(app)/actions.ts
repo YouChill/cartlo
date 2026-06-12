@@ -55,14 +55,63 @@ export type ProductSuggestion = {
   category_icon: string | null;
 };
 
+export type CategoryPrediction = {
+  id: string;
+  name: string;
+  icon: string;
+};
+
+export type ProductSearchResult = {
+  suggestions: ProductSuggestion[];
+  predicted_category: CategoryPrediction | null;
+};
+
+type ProductRow = {
+  id: string;
+  name: string;
+  categoryId: string | null;
+  usageCount: number;
+  familyId: string | null;
+};
+
+// The same product name can exist twice: as a global seed product and as a
+// family-specific override (created e.g. when the family changes a global
+// product's category in settings). Show each name only once, preferring the
+// family entry since it carries the family's category choice.
+function dedupeProductsByName(rows: ProductRow[]): ProductRow[] {
+  const byName = new Map<string, ProductRow>();
+  for (const row of rows) {
+    const key = row.name.trim().toLowerCase();
+    const current = byName.get(key);
+    if (!current) {
+      byName.set(key, row);
+      continue;
+    }
+    const rowIsFamily = row.familyId !== null;
+    const currentIsFamily = current.familyId !== null;
+    if (
+      (rowIsFamily && !currentIsFamily) ||
+      (rowIsFamily === currentIsFamily && row.usageCount > current.usageCount)
+    ) {
+      byName.set(key, row);
+    }
+  }
+  return [...byName.values()];
+}
+
 export async function searchProducts(
   query: string,
-): Promise<ProductSuggestion[]> {
+): Promise<ProductSearchResult> {
+  const empty: ProductSearchResult = {
+    suggestions: [],
+    predicted_category: null,
+  };
+
   const trimmed = query.trim();
-  if (!trimmed) return [];
+  if (!trimmed) return empty;
 
   const userId = await getCurrentUserId();
-  if (!userId) return [];
+  if (!userId) return empty;
 
   const [profile] = await db
     .select({ familyId: profiles.familyId })
@@ -70,15 +119,17 @@ export async function searchProducts(
     .where(eq(profiles.id, userId))
     .limit(1);
 
-  if (!profile?.familyId) return [];
+  if (!profile?.familyId) return empty;
 
-  // Search products by name (case-insensitive)
-  const matchedProducts = await db
+  // Search products by name (case-insensitive). Fetch more rows than we show
+  // so deduplication still leaves enough results.
+  const matchedRows = await db
     .select({
       id: products.id,
       name: products.name,
       categoryId: products.categoryId,
       usageCount: products.usageCount,
+      familyId: products.familyId,
     })
     .from(products)
     .where(
@@ -88,13 +139,17 @@ export async function searchProducts(
       ),
     )
     .orderBy(desc(products.usageCount))
-    .limit(8);
+    .limit(16);
+
+  const matchedProducts = dedupeProductsByName(matchedRows).slice(0, 8);
+
+  let queryEmbedding: number[] | null = null;
 
   // If ILIKE returned fewer than 3 results, supplement with semantic search
-  let semanticProducts: typeof matchedProducts = [];
+  let semanticProducts: ProductRow[] = [];
   if (matchedProducts.length < 3 && isEmbeddingConfigured()) {
     try {
-      const queryEmbedding = await generateEmbedding(trimmed);
+      queryEmbedding = await generateEmbedding(trimmed);
       const similar = await findSimilarProducts(
         queryEmbedding,
         profile.familyId,
@@ -102,22 +157,32 @@ export async function searchProducts(
       );
 
       if (similar.length > 0) {
-        // Filter out products already found by ILIKE
+        // Filter out products already found by ILIKE (by id and by name, so
+        // a global/family duplicate pair never shows up twice)
         const existingIds = new Set(matchedProducts.map((p) => p.id));
-        const newSimilar = similar.filter((s) => !existingIds.has(s.id));
+        const existingNames = new Set(
+          matchedProducts.map((p) => p.name.trim().toLowerCase()),
+        );
+        const newSimilar = similar.filter(
+          (s) =>
+            !existingIds.has(s.id) &&
+            !existingNames.has(s.name.trim().toLowerCase()),
+        );
 
         if (newSimilar.length > 0) {
           // Fetch full product info for semantic results
           const semanticIds = newSimilar.map((s) => s.id);
-          semanticProducts = await db
+          const semanticRows = await db
             .select({
               id: products.id,
               name: products.name,
               categoryId: products.categoryId,
               usageCount: products.usageCount,
+              familyId: products.familyId,
             })
             .from(products)
             .where(inArray(products.id, semanticIds));
+          semanticProducts = dedupeProductsByName(semanticRows);
         }
       }
     } catch (err) {
@@ -127,11 +192,39 @@ export async function searchProducts(
 
   const allProducts = [...matchedProducts, ...semanticProducts];
 
-  if (allProducts.length === 0) return [];
+  // Predict a category for the typed text so the UI can suggest it for new
+  // products. Skip when the text already matches a known product exactly.
+  let predictedCategoryId: string | null = null;
+  const hasExactMatch = allProducts.some(
+    (p) => p.name.trim().toLowerCase() === trimmed.toLowerCase(),
+  );
+  if (!hasExactMatch && trimmed.length >= 3 && isEmbeddingConfigured()) {
+    try {
+      if (!queryEmbedding) {
+        queryEmbedding = await generateEmbedding(trimmed);
+      }
+      const [best] = await findSimilarProducts(
+        queryEmbedding,
+        profile.familyId,
+        { threshold: 0.7, limit: 1, requireCategory: true },
+      );
+      if (best?.categoryId) {
+        predictedCategoryId = best.categoryId;
+      }
+    } catch (err) {
+      console.error('[searchProducts] Category prediction failed:', err);
+    }
+  }
 
-  // Fetch category names for matched products
+  if (allProducts.length === 0 && !predictedCategoryId) return empty;
+
+  // Fetch category names for matched products and the predicted category
   const categoryIds = [
-    ...new Set(allProducts.map((p) => p.categoryId).filter(Boolean)),
+    ...new Set(
+      [...allProducts.map((p) => p.categoryId), predictedCategoryId].filter(
+        Boolean,
+      ),
+    ),
   ] as string[];
 
   const categoryMap: Record<string, { name: string; icon: string }> = {};
@@ -150,17 +243,27 @@ export async function searchProducts(
     });
   }
 
-  return allProducts.map((p) => ({
-    id: p.id,
-    name: p.name,
-    category_id: p.categoryId,
-    category_name: p.categoryId
-      ? (categoryMap[p.categoryId]?.name ?? null)
-      : null,
-    category_icon: p.categoryId
-      ? (categoryMap[p.categoryId]?.icon ?? null)
-      : null,
-  }));
+  return {
+    suggestions: allProducts.map((p) => ({
+      id: p.id,
+      name: p.name,
+      category_id: p.categoryId,
+      category_name: p.categoryId
+        ? (categoryMap[p.categoryId]?.name ?? null)
+        : null,
+      category_icon: p.categoryId
+        ? (categoryMap[p.categoryId]?.icon ?? null)
+        : null,
+    })),
+    predicted_category:
+      predictedCategoryId && categoryMap[predictedCategoryId]
+        ? {
+            id: predictedCategoryId,
+            name: categoryMap[predictedCategoryId].name,
+            icon: categoryMap[predictedCategoryId].icon,
+          }
+        : null,
+  };
 }
 
 export async function addProduct(
@@ -209,63 +312,43 @@ export async function addProduct(
   // Determine category: use known category if provided, otherwise auto-detect
   let categoryId: string | null = knownCategoryId ?? null;
 
-  if (knownCategoryId === undefined) {
-    // Look up product in products table for auto-categorization
-    const [knownProduct] = await db
-      .select({
-        id: products.id,
-        categoryId: products.categoryId,
-        usageCount: products.usageCount,
-      })
-      .from(products)
-      .where(
-        and(
-          ilike(products.name, trimmed),
-          or(
-            isNull(products.familyId),
-            eq(products.familyId, profile.familyId),
-          ),
-        ),
-      )
-      .limit(1);
+  // Look up product in products table (exact, case-insensitive)
+  const [knownProduct] = await db
+    .select({
+      id: products.id,
+      name: products.name,
+      categoryId: products.categoryId,
+      usageCount: products.usageCount,
+      familyId: products.familyId,
+    })
+    .from(products)
+    .where(
+      and(
+        ilike(products.name, trimmed),
+        or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+      ),
+    )
+    .limit(1);
 
-    if (knownProduct) {
+  if (knownProduct) {
+    if (knownCategoryId === undefined) {
       categoryId = knownProduct.categoryId;
-      // Increment usage_count for better autocomplete sorting
-      await db
-        .update(products)
-        .set({ usageCount: knownProduct.usageCount + 1 })
-        .where(eq(products.id, knownProduct.id));
-    } else {
-      // Product not found by exact match — try semantic search via embeddings
-      let embeddingCategoryId: string | null = null;
-      let productEmbedding: number[] | null = null;
+    }
 
-      if (isEmbeddingConfigured()) {
-        try {
-          productEmbedding = await generateEmbedding(trimmed);
-          const similar = await findSimilarProducts(
-            productEmbedding,
-            profile.familyId,
-            { threshold: 0.8, limit: 1, requireCategory: true },
-          );
+    const categoryChanged =
+      knownCategoryId !== undefined &&
+      categoryId !== null &&
+      categoryId !== knownProduct.categoryId;
 
-          if (similar.length > 0 && similar[0].categoryId) {
-            embeddingCategoryId = similar[0].categoryId;
-          }
-        } catch (err) {
-          console.error('[addProduct] Embedding generation failed:', err);
-        }
-      }
-
-      categoryId = embeddingCategoryId;
-
-      // Add as new product (with embedding if available)
+    if (categoryChanged && knownProduct.familyId === null) {
+      // Global seed products are shared across families — record the chosen
+      // category as a family-specific override instead of mutating the
+      // global row
       try {
-        const [newProduct] = await db
+        await db
           .insert(products)
           .values({
-            name: trimmed,
+            name: knownProduct.name,
             categoryId,
             familyId: profile.familyId,
             usageCount: 1,
@@ -273,20 +356,71 @@ export async function addProduct(
           .onConflictDoUpdate({
             target: [products.name, products.familyId],
             set: { categoryId, usageCount: sql`${products.usageCount} + 1` },
-          })
-          .returning({ id: products.id });
+          });
+      } catch {
+        // Override creation failed — continue with shopping item insertion
+      }
+    } else {
+      // Increment usage_count for better autocomplete sorting and persist
+      // the chosen category on the family product
+      await db
+        .update(products)
+        .set({
+          usageCount: knownProduct.usageCount + 1,
+          ...(categoryChanged ? { categoryId } : {}),
+        })
+        .where(eq(products.id, knownProduct.id));
+    }
+  } else {
+    // Product unknown — generate an embedding and, when no category was
+    // chosen by the user, predict one from semantically similar products
+    let productEmbedding: number[] | null = null;
 
-        // Save embedding for the new product (non-blocking)
-        if (isEmbeddingConfigured() && newProduct) {
-          if (productEmbedding) {
-            saveProductEmbedding(newProduct.id, productEmbedding).catch(() => {});
-          } else {
-            upsertProductEmbedding(newProduct.id, trimmed).catch(() => {});
+    if (isEmbeddingConfigured()) {
+      try {
+        productEmbedding = await generateEmbedding(trimmed);
+        if (categoryId === null) {
+          const similar = await findSimilarProducts(
+            productEmbedding,
+            profile.familyId,
+            { threshold: 0.8, limit: 1, requireCategory: true },
+          );
+
+          if (similar.length > 0 && similar[0].categoryId) {
+            categoryId = similar[0].categoryId;
           }
         }
-      } catch {
-        // Product upsert failed — continue with shopping item insertion
+      } catch (err) {
+        console.error('[addProduct] Embedding generation failed:', err);
       }
+    }
+
+    // Add as new product so future searches and predictions know it
+    try {
+      const [newProduct] = await db
+        .insert(products)
+        .values({
+          name: trimmed,
+          categoryId,
+          familyId: profile.familyId,
+          usageCount: 1,
+        })
+        .onConflictDoUpdate({
+          target: [products.name, products.familyId],
+          set: { categoryId, usageCount: sql`${products.usageCount} + 1` },
+        })
+        .returning({ id: products.id });
+
+      // Save embedding for the new product (non-blocking)
+      if (isEmbeddingConfigured() && newProduct) {
+        if (productEmbedding) {
+          saveProductEmbedding(newProduct.id, productEmbedding).catch(() => {});
+        } else {
+          upsertProductEmbedding(newProduct.id, trimmed).catch(() => {});
+        }
+      }
+    } catch {
+      // Product upsert failed — continue with shopping item insertion
     }
   }
 

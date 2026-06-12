@@ -1,10 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
+import {
+  createElement,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+} from 'react';
 import { Minus, Plus, Search } from 'lucide-react';
 import {
   addProduct,
   searchProducts,
+  type CategoryPrediction,
   type ProductSuggestion,
 } from '@/app/(app)/actions';
 import { getCategoryIcon } from '@/lib/category-icons';
@@ -12,11 +20,22 @@ import { getCategoryIcon } from '@/lib/category-icons';
 const AVAILABLE_UNITS = ['szt', 'g', 'kg', 'ml', 'l'] as const;
 type Unit = (typeof AVAILABLE_UNITS)[number];
 
+function PredictedCategoryChip({ category }: { category: CategoryPrediction }) {
+  return (
+    <span className="flex shrink-0 items-center gap-1 text-xs text-text-tertiary">
+      {createElement(getCategoryIcon(category.icon), { size: 12 })}
+      {category.name}
+    </span>
+  );
+}
+
 export function AddProductInput() {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
+  const [predictedCategory, setPredictedCategory] =
+    useState<CategoryPrediction | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [quantity, setQuantity] = useState(1);
@@ -34,6 +53,7 @@ export function AddProductInput() {
     const trimmed = query.trim();
     if (!trimmed) {
       setSuggestions([]);
+      setPredictedCategory(null);
       setShowDropdown(false);
       setSelectedIndex(-1);
       return;
@@ -41,7 +61,8 @@ export function AddProductInput() {
 
     debounceRef.current = setTimeout(async () => {
       const results = await searchProducts(trimmed);
-      setSuggestions(results);
+      setSuggestions(results.suggestions);
+      setPredictedCategory(results.predicted_category);
       setShowDropdown(true);
       setSelectedIndex(-1);
     }, 200);
@@ -80,6 +101,7 @@ export function AddProductInput() {
     setError(null);
     setShowDropdown(false);
     setSuggestions([]);
+    setPredictedCategory(null);
     startTransition(async () => {
       const result = await addProduct(trimmed, categoryId, quantity, unit);
       if (result.success) {
@@ -102,7 +124,7 @@ export function AddProductInput() {
     }
     // If selectedIndex points to "add as new" option
     if (selectedIndex === suggestions.length && value.trim()) {
-      handleAddProduct(value.trim(), null);
+      handleAddProduct(value.trim(), predictedCategory?.id ?? null);
       return;
     }
     // Default: add typed value (will auto-categorize via server action)
@@ -303,12 +325,14 @@ export function AddProductInput() {
             );
           })}
 
-          {/* "Add as new" option */}
+          {/* "Add as new" option (with AI-predicted category, if any) */}
           {showAddNew && (
             <div
               role="option"
               aria-selected={selectedIndex === suggestions.length}
-              onClick={() => handleAddProduct(value.trim(), null)}
+              onClick={() =>
+                handleAddProduct(value.trim(), predictedCategory?.id ?? null)
+              }
               className={`flex cursor-pointer items-center gap-2 border-t border-border-light px-4 py-3 ${
                 selectedIndex === suggestions.length
                   ? 'bg-mint-200'
@@ -316,9 +340,12 @@ export function AddProductInput() {
               }`}
             >
               <Plus size={16} className="shrink-0 text-mint-600" />
-              <span className="text-base text-mint-600">
+              <span className="min-w-0 flex-1 text-base text-mint-600">
                 Dodaj &ldquo;{value.trim()}&rdquo; jako nowy
               </span>
+              {predictedCategory && (
+                <PredictedCategoryChip category={predictedCategory} />
+              )}
             </div>
           )}
         </div>
