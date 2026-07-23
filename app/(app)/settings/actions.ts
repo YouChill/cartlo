@@ -2,11 +2,20 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { eq, and, or, isNull, ilike, asc, desc, sql } from 'drizzle-orm';
+import { randomBytes } from 'crypto';
+import { eq, and, or, isNull, ilike, desc, sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { signOut as authSignOut, getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { profiles, users, products, categories, shoppingItems } from '@/lib/db/schema';
+import {
+  profiles,
+  users,
+  products,
+  categories,
+  shoppingItems,
+  apiKeys,
+} from '@/lib/db/schema';
+import { generateApiKeyString, hashApiKey } from '@/lib/api/auth';
 
 // ---------------------------------------------------------------------------
 // Sign out
@@ -42,10 +51,7 @@ export async function updateDisplayName(
   const userId = await getCurrentUserId();
   if (!userId) redirect('/login');
 
-  await db
-    .update(profiles)
-    .set({ displayName })
-    .where(eq(profiles.id, userId));
+  await db.update(profiles).set({ displayName }).where(eq(profiles.id, userId));
 
   revalidatePath('/', 'layout');
   return { error: null, success: true };
@@ -156,7 +162,8 @@ export async function sendInviteEmail(
   const smtpPass = process.env.SMTP_PASS;
   if (!smtpUser || !smtpPass) {
     return {
-      error: 'Wysyłanie emaili nie jest skonfigurowane. Użyj linku zaproszenia.',
+      error:
+        'Wysyłanie emaili nie jest skonfigurowane. Użyj linku zaproszenia.',
       success: false,
     };
   }
@@ -215,6 +222,141 @@ export async function sendInviteEmail(
 }
 
 // ---------------------------------------------------------------------------
+// API key for the agent REST API (/api/v1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Find or create the family's system "Agent" profile that API writes are
+ * attributed to. Profiles require a users row (PK/FK), so the agent gets a
+ * synthetic user with an unusable password hash (bcrypt.compare always fails
+ * against a non-bcrypt string) and an internal, per-family email.
+ */
+async function ensureAgentProfile(familyId: string): Promise<string> {
+  const agentEmail = `agent+${familyId}@agent.cartlo.internal`;
+
+  let [agentUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, agentEmail))
+    .limit(1);
+
+  if (!agentUser) {
+    [agentUser] = await db
+      .insert(users)
+      .values({
+        email: agentEmail,
+        passwordHash: randomBytes(32).toString('hex'),
+      })
+      .returning({ id: users.id });
+  }
+
+  const [agentProfile] = await db
+    .select({ id: profiles.id, familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, agentUser.id))
+    .limit(1);
+
+  if (!agentProfile) {
+    await db.insert(profiles).values({
+      id: agentUser.id,
+      familyId,
+      displayName: 'Agent',
+    });
+  } else if (agentProfile.familyId !== familyId) {
+    await db
+      .update(profiles)
+      .set({ familyId })
+      .where(eq(profiles.id, agentUser.id));
+  }
+
+  return agentUser.id;
+}
+
+export async function generateApiKey(): Promise<{
+  success: boolean;
+  error?: string;
+  apiKey?: string;
+}> {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
+
+    const [profile] = await db
+      .select({ familyId: profiles.familyId })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+
+    if (!profile?.familyId) {
+      return { success: false, error: 'Nie należysz do rodziny' };
+    }
+
+    const agentProfileId = await ensureAgentProfile(profile.familyId);
+
+    // One active key per family — generating a new one revokes the old
+    await db
+      .update(apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(eq(apiKeys.familyId, profile.familyId), isNull(apiKeys.revokedAt)),
+      );
+
+    const apiKey = generateApiKeyString();
+    await db.insert(apiKeys).values({
+      familyId: profile.familyId,
+      agentProfileId,
+      keyHash: hashApiKey(apiKey),
+      keyPrefix: apiKey.slice(0, 16),
+    });
+
+    revalidatePath('/settings');
+    return { success: true, apiKey };
+  } catch (error) {
+    console.error('generateApiKey error:', error);
+    return {
+      success: false,
+      error: 'Wystąpił błąd podczas generowania klucza',
+    };
+  }
+}
+
+export async function revokeApiKey(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
+  try {
+    const userId = await getCurrentUserId();
+    if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
+
+    const [profile] = await db
+      .select({ familyId: profiles.familyId })
+      .from(profiles)
+      .where(eq(profiles.id, userId))
+      .limit(1);
+
+    if (!profile?.familyId) {
+      return { success: false, error: 'Nie należysz do rodziny' };
+    }
+
+    await db
+      .update(apiKeys)
+      .set({ revokedAt: new Date() })
+      .where(
+        and(eq(apiKeys.familyId, profile.familyId), isNull(apiKeys.revokedAt)),
+      );
+
+    revalidatePath('/settings');
+    return { success: true };
+  } catch (error) {
+    console.error('revokeApiKey error:', error);
+    return {
+      success: false,
+      error: 'Wystąpił błąd podczas unieważniania klucza',
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Search products for category management
 // ---------------------------------------------------------------------------
 export type ProductWithCategory = {
@@ -253,7 +395,10 @@ export async function searchProductsForSettings(
       .where(
         and(
           ilike(products.name, `%${trimmed}%`),
-          or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+          or(
+            isNull(products.familyId),
+            eq(products.familyId, profile.familyId),
+          ),
         ),
       )
       .orderBy(desc(products.usageCount))
@@ -286,8 +431,12 @@ export async function searchProductsForSettings(
       id: p.id,
       name: p.name,
       categoryId: p.categoryId,
-      categoryName: p.categoryId ? (categoryMap[p.categoryId]?.name ?? null) : null,
-      categoryIcon: p.categoryId ? (categoryMap[p.categoryId]?.icon ?? null) : null,
+      categoryName: p.categoryId
+        ? (categoryMap[p.categoryId]?.name ?? null)
+        : null,
+      categoryIcon: p.categoryId
+        ? (categoryMap[p.categoryId]?.icon ?? null)
+        : null,
     }));
   } catch (error) {
     console.error('searchProductsForSettings error:', error);
@@ -312,16 +461,24 @@ export async function updateProductCategory(
       .where(eq(profiles.id, userId))
       .limit(1);
 
-    if (!profile?.familyId) return { success: false, error: 'Nie należysz do rodziny' };
+    if (!profile?.familyId)
+      return { success: false, error: 'Nie należysz do rodziny' };
 
     // Get product to verify access and get name
     const [product] = await db
-      .select({ id: products.id, name: products.name, familyId: products.familyId })
+      .select({
+        id: products.id,
+        name: products.name,
+        familyId: products.familyId,
+      })
       .from(products)
       .where(
         and(
           eq(products.id, productId),
-          or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
+          or(
+            isNull(products.familyId),
+            eq(products.familyId, profile.familyId),
+          ),
         ),
       )
       .limit(1);

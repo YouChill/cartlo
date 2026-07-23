@@ -1,8 +1,9 @@
 import { redirect } from 'next/navigation';
-import { eq, or, isNull, asc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { profiles, shoppingItems, categories, } from '@/lib/db/schema';
+import { profiles } from '@/lib/db/schema';
+import { getShoppingList } from '@/lib/shopping/service';
 import { ShoppingList } from '@/components/shopping/shopping-list';
 
 export default async function ListPage() {
@@ -17,64 +18,35 @@ export default async function ListPage() {
 
   if (!profile?.familyId) redirect('/onboarding');
 
-  // Fetch shopping items for the family
-  const items = await db
-    .select({
-      id: shoppingItems.id,
-      product_name: shoppingItems.productName,
-      category_id: shoppingItems.categoryId,
-      quantity: shoppingItems.quantity,
-      unit: shoppingItems.unit,
-      is_checked: shoppingItems.isChecked,
-      added_by: shoppingItems.addedBy,
-      checked_by: shoppingItems.checkedBy,
-      checked_at: shoppingItems.checkedAt,
-      created_at: shoppingItems.createdAt,
-    })
-    .from(shoppingItems)
-    .where(eq(shoppingItems.familyId, profile.familyId))
-    .orderBy(asc(shoppingItems.productName));
+  const { items, categories, memberNames } = await getShoppingList(
+    profile.familyId,
+  );
 
-  // Fetch categories
-  const cats = await db
-    .select({
-      id: categories.id,
-      name: categories.name,
-      icon: categories.icon,
-      sort_order: categories.sortOrder,
-    })
-    .from(categories)
-    .where(
-      or(
-        isNull(categories.familyId),
-        eq(categories.familyId, profile.familyId),
-      ),
-    )
-    .orderBy(asc(categories.sortOrder));
-
-  // Fetch family member names for meta info
-  const members = await db
-    .select({ id: profiles.id, display_name: profiles.displayName })
-    .from(profiles)
-    .where(eq(profiles.familyId, profile.familyId));
-
-  // Build member name lookup
-  const memberNames: Record<string, string> = {};
-  members.forEach((m) => {
-    memberNames[m.id] = m.display_name;
-  });
-
-  // Serialize dates to strings for client components
+  // Serialize for client components (snake_case props, dates as strings)
   const serializedItems = items.map((item) => ({
-    ...item,
-    checked_at: item.checked_at?.toISOString() ?? null,
-    created_at: item.created_at.toISOString(),
+    id: item.id,
+    product_name: item.productName,
+    category_id: item.categoryId,
+    quantity: item.quantity,
+    unit: item.unit,
+    is_checked: item.isChecked,
+    added_by: item.addedBy,
+    checked_by: item.checkedBy,
+    checked_at: item.checkedAt?.toISOString() ?? null,
+    created_at: item.createdAt.toISOString(),
+  }));
+
+  const serializedCategories = categories.map((c) => ({
+    id: c.id,
+    name: c.name,
+    icon: c.icon,
+    sort_order: c.sortOrder,
   }));
 
   return (
     <ShoppingList
       items={serializedItems}
-      categories={cats}
+      categories={serializedCategories}
       memberNames={memberNames}
       familyId={profile.familyId}
     />
