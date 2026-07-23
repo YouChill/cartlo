@@ -186,10 +186,10 @@ export async function addShoppingItem(params: {
 
     if (knownProduct) {
       categoryId = knownProduct.categoryId;
-      // Increment usage_count for better autocomplete sorting
+      // Atomic increment — avoids the lost-update race of read-then-write.
       await db
         .update(products)
-        .set({ usageCount: knownProduct.usageCount + 1 })
+        .set({ usageCount: sql`${products.usageCount} + 1` })
         .where(eq(products.id, knownProduct.id));
     } else {
       // Product not found by exact match — try semantic search via embeddings

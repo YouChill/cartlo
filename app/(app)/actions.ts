@@ -5,6 +5,7 @@ import { eq, and, or, isNull, ilike, desc, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { profiles, shoppingItems, products, categories } from '@/lib/db/schema';
+import { isCategoryVisibleToFamily } from '@/lib/db/scope';
 import { notifyListUpdate } from '@/lib/pusher/server';
 import { addShoppingItem, updateShoppingItem } from '@/lib/shopping/service';
 import {
@@ -186,13 +187,23 @@ export async function addProduct(
     return { success: false, error: 'Nie należysz do rodziny' };
   }
 
+  // If the client supplied a category, it must be global or owned by this
+  // family — otherwise drop it (auto-categorization will run instead).
+  let categoryId = knownCategoryId;
+  if (
+    categoryId &&
+    !(await isCategoryVisibleToFamily(categoryId, profile.familyId))
+  ) {
+    categoryId = null;
+  }
+
   const result = await addShoppingItem({
     familyId: profile.familyId,
     profileId: userId,
     productName: trimmed,
     quantity,
     unit,
-    categoryId: knownCategoryId,
+    categoryId,
   });
 
   if (!result.ok) {
@@ -205,7 +216,7 @@ export async function addProduct(
 
 export async function classifyProduct(
   itemId: string,
-  productName: string,
+  _productName: string,
   categoryId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const userId = await getCurrentUserId();
@@ -223,7 +234,32 @@ export async function classifyProduct(
     return { success: false, error: 'Nie należysz do rodziny' };
   }
 
-  // Update the shopping item's category (scoped to user's family)
+  // The target category must be global or owned by this family — never accept
+  // a foreign family's private category id from the client.
+  if (!(await isCategoryVisibleToFamily(categoryId, profile.familyId))) {
+    return { success: false, error: 'Nieprawidłowa kategoria' };
+  }
+
+  // Verify the item belongs to this family and read its real name from the DB
+  // (do not trust the client-supplied name — it drives what we "teach").
+  const [item] = await db
+    .select({ productName: shoppingItems.productName })
+    .from(shoppingItems)
+    .where(
+      and(
+        eq(shoppingItems.id, itemId),
+        eq(shoppingItems.familyId, profile.familyId),
+      ),
+    )
+    .limit(1);
+
+  if (!item) {
+    return { success: false, error: 'Element nie istnieje' };
+  }
+
+  const productName = item.productName;
+
+  // Update the shopping item's category
   await db
     .update(shoppingItems)
     .set({ categoryId })
@@ -234,52 +270,31 @@ export async function classifyProduct(
       ),
     );
 
-  // Upsert product — teach the system for future auto-categorization
-  const [existingProduct] = await db
-    .select({ id: products.id })
-    .from(products)
-    .where(
-      and(
-        ilike(products.name, productName),
-        or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
-      ),
-    )
-    .limit(1);
+  // Teach the system for future auto-categorization. Always write a
+  // FAMILY-SCOPED product override — never mutate a global (family_id IS NULL)
+  // product, which would change categorization for every other family.
+  try {
+    const [upserted] = await db
+      .insert(products)
+      .values({
+        name: productName,
+        categoryId,
+        familyId: profile.familyId,
+        usageCount: 1,
+      })
+      .onConflictDoUpdate({
+        target: [products.name, products.familyId],
+        set: { categoryId },
+      })
+      .returning({ id: products.id });
 
-  if (existingProduct) {
-    await db
-      .update(products)
-      .set({ categoryId })
-      .where(eq(products.id, existingProduct.id));
-
-    // Update embedding for this product (non-blocking)
-    if (isEmbeddingConfigured()) {
-      upsertProductEmbedding(existingProduct.id, productName).catch(() => {});
+    // Generate/refresh embedding for this product (non-blocking)
+    if (isEmbeddingConfigured() && upserted) {
+      upsertProductEmbedding(upserted.id, productName).catch(() => {});
     }
-  } else {
-    try {
-      const [newProduct] = await db
-        .insert(products)
-        .values({
-          name: productName,
-          categoryId,
-          familyId: profile.familyId,
-          usageCount: 1,
-        })
-        .onConflictDoUpdate({
-          target: [products.name, products.familyId],
-          set: { categoryId },
-        })
-        .returning({ id: products.id });
-
-      // Generate embedding for new product (non-blocking)
-      if (isEmbeddingConfigured() && newProduct) {
-        upsertProductEmbedding(newProduct.id, productName).catch(() => {});
-      }
-    } catch {
-      // Product upsert failed — classification of the shopping item
-      // already succeeded above, so we can safely continue.
-    }
+  } catch {
+    // Product teaching failed — the shopping item was already reclassified
+    // above, so the user-facing action still succeeded.
   }
 
   revalidatePath('/');

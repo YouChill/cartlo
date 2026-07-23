@@ -1,3 +1,4 @@
+import { sql } from 'drizzle-orm';
 import {
   pgTable,
   uuid,
@@ -43,6 +44,9 @@ export const users = pgTable('users', {
   id: uuid('id').primaryKey().defaultRandom(),
   email: text('email').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
+  // Non-loginable accounts (e.g. synthetic API "Agent" users). When true the
+  // credentials flow rejects login regardless of the stored password hash.
+  loginDisabled: boolean('login_disabled').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -97,6 +101,12 @@ export const products = pgTable(
   },
   (table) => [
     uniqueIndex('products_name_family_idx').on(table.name, table.familyId),
+    // Global products (family_id IS NULL) must be unique by case-insensitive
+    // name — the (name, family_id) index above does not enforce this because
+    // Postgres treats NULLs as distinct. Also the seed's ON CONFLICT arbiter.
+    uniqueIndex('products_global_name_uq')
+      .on(sql`lower(${table.name})`)
+      .where(sql`${table.familyId} IS NULL`),
   ],
 );
 

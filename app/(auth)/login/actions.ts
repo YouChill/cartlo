@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
 import { eq } from 'drizzle-orm';
-import { signIn } from '@/lib/auth';
+import { signIn, isReservedEmailDomain } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { users, profiles } from '@/lib/db/schema';
 
@@ -77,6 +77,12 @@ export async function register(
 
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) {
+    return { error: 'Podaj poprawny adres email.' };
+  }
+
+  // Never allow registering under the reserved synthetic-agent domain — it is
+  // used for system API accounts and must not be claimable by real users.
+  if (isReservedEmailDomain(email)) {
     return { error: 'Podaj poprawny adres email.' };
   }
 

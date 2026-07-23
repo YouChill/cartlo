@@ -5,6 +5,18 @@ import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { users, profiles } from '@/lib/db/schema';
 
+// Reserved domain for synthetic API "Agent" accounts. Real users must never be
+// able to register under it, and agent accounts must never be loginable.
+export const AGENT_EMAIL_DOMAIN = 'agent.cartlo.internal';
+
+export function agentEmailFor(familyId: string): string {
+  return `agent+${familyId}@${AGENT_EMAIL_DOMAIN}`;
+}
+
+export function isReservedEmailDomain(email: string): boolean {
+  return email.toLowerCase().trimEnd().endsWith(`@${AGENT_EMAIL_DOMAIN}`);
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: 'jwt' },
   pages: {
@@ -29,6 +41,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           .limit(1);
 
         if (!user) return null;
+
+        // Synthetic/system accounts (e.g. API agents) can never log in,
+        // regardless of the stored password hash.
+        if (user.loginDisabled) return null;
 
         const valid = await bcrypt.compare(password, user.passwordHash);
         if (!valid) return null;
