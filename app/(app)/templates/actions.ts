@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq, and, asc, desc, or, isNull, ilike, sql } from 'drizzle-orm';
+import { eq, and, asc, desc, or, isNull, ilike, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
 import {
@@ -12,6 +12,7 @@ import {
   products,
   categories,
 } from '@/lib/db/schema';
+import { isCategoryVisibleToFamily } from '@/lib/db/scope';
 import { notifyListUpdate } from '@/lib/pusher/server';
 import { removeDiacritics } from '@/lib/utils';
 
@@ -105,7 +106,7 @@ export async function getTemplates(): Promise<TemplateData[]> {
       sort_order: templateItems.sortOrder,
     })
     .from(templateItems)
-    .where(sql`${templateItems.templateId} IN ${templateIds}`)
+    .where(inArray(templateItems.templateId, templateIds))
     .orderBy(asc(templateItems.sortOrder));
 
   const categoryIds = [
@@ -121,7 +122,7 @@ export async function getTemplates(): Promise<TemplateData[]> {
         icon: categories.icon,
       })
       .from(categories)
-      .where(sql`${categories.id} IN ${categoryIds}`);
+      .where(inArray(categories.id, categoryIds));
     cats.forEach((c) => {
       categoryMap[c.id] = { name: c.name, icon: c.icon };
     });
@@ -344,7 +345,7 @@ export async function duplicateTemplate(
         icon: categories.icon,
       })
       .from(categories)
-      .where(sql`${categories.id} IN ${categoryIds}`);
+      .where(inArray(categories.id, categoryIds));
     cats.forEach((c) => {
       categoryMap[c.id] = { name: c.name, icon: c.icon };
     });
@@ -396,32 +397,54 @@ export async function addTemplateItem(
   const userId = await getCurrentUserId();
   if (!userId) return { success: false, error: 'Nie jesteś zalogowany' };
 
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, userId))
+    .limit(1);
+
+  if (!profile?.familyId)
+    return { success: false, error: 'Nie należysz do rodziny' };
+
+  // Verify the target template belongs to the caller's family — without this a
+  // user could add items to any family's template (IDOR).
+  const [template] = await db
+    .select({ id: templates.id })
+    .from(templates)
+    .where(
+      and(
+        eq(templates.id, templateId),
+        eq(templates.familyId, profile.familyId),
+      ),
+    )
+    .limit(1);
+
+  if (!template) return { success: false, error: 'Szablon nie istnieje' };
+
   let resolvedCategoryId = categoryId ?? null;
   let categoryIcon: string | null = null;
 
   if (categoryId === undefined) {
-    const [profile] = await db
-      .select({ familyId: profiles.familyId })
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-
-    if (profile?.familyId) {
-      const [knownProduct] = await db
-        .select({ categoryId: products.categoryId })
-        .from(products)
-        .where(
-          and(
-            ilike(products.name, trimmed),
-            or(
-              isNull(products.familyId),
-              eq(products.familyId, profile.familyId),
-            ),
+    const [knownProduct] = await db
+      .select({ categoryId: products.categoryId })
+      .from(products)
+      .where(
+        and(
+          ilike(products.name, trimmed),
+          or(
+            isNull(products.familyId),
+            eq(products.familyId, profile.familyId),
           ),
-        )
-        .limit(1);
-      resolvedCategoryId = knownProduct?.categoryId ?? null;
-    }
+        ),
+      )
+      .limit(1);
+    resolvedCategoryId = knownProduct?.categoryId ?? null;
+  } else if (
+    resolvedCategoryId &&
+    !(await isCategoryVisibleToFamily(resolvedCategoryId, profile.familyId))
+  ) {
+    // A client-supplied category must be global or owned by this family.
+    resolvedCategoryId = null;
   }
 
   // Resolve category icon for default unit detection
@@ -561,7 +584,15 @@ export async function updateTemplateItem(
   }
 
   if (data.categoryId !== undefined) {
-    updateSet.categoryId = data.categoryId;
+    // A client-supplied category must be global or owned by this family.
+    if (
+      data.categoryId &&
+      !(await isCategoryVisibleToFamily(data.categoryId, profile.familyId))
+    ) {
+      updateSet.categoryId = null;
+    } else {
+      updateSet.categoryId = data.categoryId;
+    }
   }
 
   if (data.quantity !== undefined) {
@@ -692,7 +723,7 @@ export async function sortTemplateItemsByCategory(
         sortOrder: categories.sortOrder,
       })
       .from(categories)
-      .where(sql`${categories.id} IN ${categoryIds}`);
+      .where(inArray(categories.id, categoryIds));
     cats.forEach((c) => {
       categoryMap[c.id] = { sortOrder: c.sortOrder, name: c.name };
     });
@@ -965,21 +996,17 @@ export async function useTemplate(templateId: string): Promise<{
     };
   }
 
-  // Format product name with quantity if > 1
+  // Persist quantity and unit to their own columns — never fold them into the
+  // product name (that breaks dedup, category-by-name updates, and the UI).
   await db.insert(shoppingItems).values(
-    toInsert.map((item) => {
-      const qty = parseFloat(item.quantity);
-      const displayName =
-        qty > 1 || item.unit !== 'szt'
-          ? `${item.productName} (${qty % 1 === 0 ? qty.toFixed(0) : qty} ${item.unit})`
-          : item.productName;
-      return {
-        familyId: profile.familyId!,
-        productName: displayName,
-        categoryId: item.categoryId,
-        addedBy: userId,
-      };
-    }),
+    toInsert.map((item) => ({
+      familyId: profile.familyId!,
+      productName: item.productName,
+      categoryId: item.categoryId,
+      quantity: item.quantity,
+      unit: item.unit,
+      addedBy: userId,
+    })),
   );
 
   revalidatePath('/');

@@ -3,9 +3,13 @@
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { randomBytes } from 'crypto';
-import { eq, and, or, isNull, ilike, desc, sql } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, desc, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
-import { signOut as authSignOut, getCurrentUserId } from '@/lib/auth';
+import {
+  signOut as authSignOut,
+  getCurrentUserId,
+  agentEmailFor,
+} from '@/lib/auth';
 import { db } from '@/lib/db';
 import {
   profiles,
@@ -15,7 +19,18 @@ import {
   shoppingItems,
   apiKeys,
 } from '@/lib/db/schema';
+import { isCategoryVisibleToFamily } from '@/lib/db/scope';
 import { generateApiKeyString, hashApiKey } from '@/lib/api/auth';
+
+/** Escape a string for safe interpolation into HTML (email templates). */
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 // ---------------------------------------------------------------------------
 // Sign out
@@ -176,26 +191,38 @@ export async function sendInviteEmail(
   const inviteLink = `${baseUrl}/join/${family.inviteCode}`;
 
   try {
+    const smtpPort = Number(process.env.SMTP_PORT ?? '587');
     const nodemailer = await import('nodemailer');
     const transporter = nodemailer.default.createTransport({
       host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
-      port: Number(process.env.SMTP_PORT ?? '587'),
-      secure: false,
+      port: smtpPort,
+      // Implicit TLS on 465; STARTTLS (upgraded) on 587/others.
+      secure: smtpPort === 465,
+      requireTLS: smtpPort !== 465,
       auth: {
         user: smtpUser,
         pass: smtpPass,
       },
     });
 
+    // Escape all user-controlled values before interpolating into HTML —
+    // displayName and family name are user-set and would otherwise allow
+    // HTML/markup injection into the outbound email.
+    const safeDisplayName = escapeHtml(profile.displayName);
+    const safeFamilyName = escapeHtml(family.name);
+
     await transporter.sendMail({
       from: process.env.SMTP_FROM ?? `Cartlo <${smtpUser}>`,
       to: email,
       subject: `${profile.displayName} zaprasza Cię do rodziny "${family.name}" w Cartlo`,
+      text:
+        `${profile.displayName} zaprasza Cię do wspólnej listy zakupów w Cartlo.\n\n` +
+        `Dołącz do rodziny "${family.name}":\n${inviteLink}\n`,
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 16px;">
-          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dołącz do rodziny "${family.name}"</h2>
+          <h2 style="color: #1a1a1a; margin-bottom: 8px;">Dołącz do rodziny "${safeFamilyName}"</h2>
           <p style="color: #6b6b6b; font-size: 15px; line-height: 1.6;">
-            ${profile.displayName} zaprasza Cię do wspólnej listy zakupów w <strong>Cartlo</strong>.
+            ${safeDisplayName} zaprasza Cię do wspólnej listy zakupów w <strong>Cartlo</strong>.
           </p>
           <a href="${inviteLink}"
              style="display: inline-block; margin-top: 16px; padding: 12px 24px;
@@ -205,7 +232,7 @@ export async function sendInviteEmail(
           </a>
           <p style="margin-top: 24px; color: #9b9b9b; font-size: 13px;">
             Lub skopiuj link: <br/>
-            <a href="${inviteLink}" style="color: #4ade80;">${inviteLink}</a>
+            <a href="${inviteLink}" style="color: #4ade80;">${escapeHtml(inviteLink)}</a>
           </p>
         </div>
       `,
@@ -232,7 +259,7 @@ export async function sendInviteEmail(
  * against a non-bcrypt string) and an internal, per-family email.
  */
 async function ensureAgentProfile(familyId: string): Promise<string> {
-  const agentEmail = `agent+${familyId}@agent.cartlo.internal`;
+  const agentEmail = agentEmailFor(familyId);
 
   let [agentUser] = await db
     .select({ id: users.id })
@@ -246,8 +273,16 @@ async function ensureAgentProfile(familyId: string): Promise<string> {
       .values({
         email: agentEmail,
         passwordHash: randomBytes(32).toString('hex'),
+        loginDisabled: true,
       })
       .returning({ id: users.id });
+  } else {
+    // Defensively ensure the account can never be logged into, even if it
+    // predates the loginDisabled flag or was created by another path.
+    await db
+      .update(users)
+      .set({ loginDisabled: true })
+      .where(eq(users.id, agentUser.id));
   }
 
   const [agentProfile] = await db
@@ -420,7 +455,7 @@ export async function searchProductsForSettings(
           icon: categories.icon,
         })
         .from(categories)
-        .where(sql`${categories.id} IN ${categoryIds}`);
+        .where(inArray(categories.id, categoryIds));
 
       for (const c of cats) {
         categoryMap[c.id] = { name: c.name, icon: c.icon };
@@ -463,6 +498,11 @@ export async function updateProductCategory(
 
     if (!profile?.familyId)
       return { success: false, error: 'Nie należysz do rodziny' };
+
+    // The target category must be global or owned by this family.
+    if (!(await isCategoryVisibleToFamily(categoryId, profile.familyId))) {
+      return { success: false, error: 'Nieprawidłowa kategoria' };
+    }
 
     // Get product to verify access and get name
     const [product] = await db

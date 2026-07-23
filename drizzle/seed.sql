@@ -30,8 +30,36 @@ ON CONFLICT (id) DO UPDATE SET
   sort_order = EXCLUDED.sort_order;
 
 -- -----------------------------------------------------------------------------
+-- Global-product uniqueness (idempotency guarantee)
+--
+-- The plain unique index on (name, family_id) does NOT dedupe global products:
+-- Postgres treats two NULL family_id values as distinct, so re-running the seed
+-- would insert duplicate global rows. Deduplicate any existing duplicates by
+-- case-insensitive name (keep the most-used row), then enforce a partial unique
+-- index used as the ON CONFLICT arbiter below. No table FK-references
+-- products.id, so deleting duplicate rows is safe.
+-- -----------------------------------------------------------------------------
+
+WITH ranked AS (
+  SELECT id,
+         row_number() OVER (
+           PARTITION BY lower(name)
+           ORDER BY usage_count DESC, id ASC
+         ) AS rn
+  FROM public.products
+  WHERE family_id IS NULL
+)
+DELETE FROM public.products p
+USING ranked r
+WHERE p.id = r.id AND r.rn > 1;
+
+CREATE UNIQUE INDEX IF NOT EXISTS products_global_name_uq
+  ON public.products (lower(name))
+  WHERE family_id IS NULL;
+
+-- -----------------------------------------------------------------------------
 -- Products (global, family_id = NULL)
--- ON CONFLICT on unique(name, family_id) — updates category if product exists
+-- ON CONFLICT on the partial index products_global_name_uq (lower(name))
 -- -----------------------------------------------------------------------------
 
 -- Owoce i warzywa
@@ -54,7 +82,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Brokuły',          'a0000000-0000-0000-0000-000000000001', NULL, 0),
   ('Szpinak',          'a0000000-0000-0000-0000-000000000001', NULL, 0),
   ('Kapusta',          'a0000000-0000-0000-0000-000000000001', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Nabiał
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -72,7 +100,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Mozzarella',       'a0000000-0000-0000-0000-000000000002', NULL, 0),
   ('Parmezan',         'a0000000-0000-0000-0000-000000000002', NULL, 0),
   ('Mleko migdałowe',  'a0000000-0000-0000-0000-000000000002', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Pieczywo
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -84,7 +112,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Białko',           'a0000000-0000-0000-0000-000000000003', NULL, 0),
   ('Chleb razowy',     'a0000000-0000-0000-0000-000000000003', NULL, 0),
   ('Pita',             'a0000000-0000-0000-0000-000000000003', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Mięso i wędliny
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -98,7 +126,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Udka z kurczaka',  'a0000000-0000-0000-0000-000000000004', NULL, 0),
   ('Schab',            'a0000000-0000-0000-0000-000000000004', NULL, 0),
   ('Kabanosy',         'a0000000-0000-0000-0000-000000000004', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Ryby i owoce morza
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -108,7 +136,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Dorsz',            'a0000000-0000-0000-0000-000000000005', NULL, 0),
   ('Śledź',            'a0000000-0000-0000-0000-000000000005', NULL, 0),
   ('Makrela',          'a0000000-0000-0000-0000-000000000005', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Mrożonki
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -119,7 +147,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Pizza mrożona',    'a0000000-0000-0000-0000-000000000006', NULL, 0),
   ('Lody',             'a0000000-0000-0000-0000-000000000006', NULL, 0),
   ('Ryba mrożona',     'a0000000-0000-0000-0000-000000000006', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Napoje
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -133,7 +161,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Piwo',             'a0000000-0000-0000-0000-000000000007', NULL, 0),
   ('Wino',             'a0000000-0000-0000-0000-000000000007', NULL, 0),
   ('Woda gazowana',    'a0000000-0000-0000-0000-000000000007', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Słodycze i przekąski
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -147,7 +175,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Paluszki',         'a0000000-0000-0000-0000-000000000008', NULL, 0),
   ('Popcorn',          'a0000000-0000-0000-0000-000000000008', NULL, 0),
   ('Chałwa',            'a0000000-0000-0000-0000-000000000008', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Przyprawy i sosy
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -160,7 +188,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Sos sojowy',       'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Papryka mielona',  'a0000000-0000-0000-0000-000000000009', NULL, 0),
   ('Passata pomidorowa',  'a0000000-0000-0000-0000-000000000009', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Oleje
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -172,7 +200,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Olej lniany',      'a0000000-0000-0000-0000-000000000014', NULL, 0),
   ('Masło klarowane',  'a0000000-0000-0000-0000-000000000014', NULL, 0),
   ('Olej z pestek winogron', 'a0000000-0000-0000-0000-000000000014', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Mąki i sypkie składniki
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -190,7 +218,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Płatki owsiane',   'a0000000-0000-0000-0000-000000000015', NULL, 0),
   ('Bułka tarta',      'a0000000-0000-0000-0000-000000000015', NULL, 0),
   ('Kakao',            'a0000000-0000-0000-0000-000000000015', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Kasze i makarony
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -209,7 +237,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Makaron ryżowy',   'a0000000-0000-0000-0000-000000000016', NULL, 0),
   ('Makaron lasagne',  'a0000000-0000-0000-0000-000000000016', NULL, 0),
   ('Makaron nitki',    'a0000000-0000-0000-0000-000000000016', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Chemia domowa
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -223,7 +251,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Tabletki do zmywarki',  'a0000000-0000-0000-0000-000000000010', NULL, 0),
   ('Płyn do szyb',     'a0000000-0000-0000-0000-000000000010', NULL, 0),
   ('Wybielacz',        'a0000000-0000-0000-0000-000000000010', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Higiena
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -237,7 +265,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Szczoteczka do zębów',  'a0000000-0000-0000-0000-000000000011', NULL, 0),
   ('Żel pod prysznic', 'a0000000-0000-0000-0000-000000000011', NULL, 0),
   ('Krem do rąk',      'a0000000-0000-0000-0000-000000000011', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- Artykuły domowe
 INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
@@ -249,7 +277,7 @@ INSERT INTO public.products (name, category_id, family_id, usage_count) VALUES
   ('Papier do pieczenia',  'a0000000-0000-0000-0000-000000000012', NULL, 0),
   ('Świece',           'a0000000-0000-0000-0000-000000000012', NULL, 0),
   ('Torebki śniadaniowe',  'a0000000-0000-0000-0000-000000000012', NULL, 0)
-ON CONFLICT (name, family_id) DO UPDATE SET category_id = EXCLUDED.category_id;
+ON CONFLICT (lower(name)) WHERE family_id IS NULL DO UPDATE SET category_id = EXCLUDED.category_id;
 
 -- -----------------------------------------------------------------------------
 -- Sync family products: update category_id for family-specific products
