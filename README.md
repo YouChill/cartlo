@@ -67,6 +67,10 @@ Aplikacja dostepna pod [http://localhost:3000](http://localhost:3000).
 
 \* Bez `OPENAI_API_KEY` aplikacja dziala normalnie, ale bez inteligentnej kategoryzacji i wyszukiwania semantycznego.
 
+## API dla agenta (/api/v1)
+
+Aplikacja wystawia REST API pozwalajace zewnetrznemu agentowi (np. asystentowi AI) czytac i edytowac liste zakupow rodziny. Klucz API generuje sie per rodzina w **Ustawienia → Klucz API (Agent AI)**; pozycje dodane przez API sa podpisane profilem „Agent". Szczegoly i przyklady: [docs/api.md](docs/api.md). Wymagana migracja: `drizzle/migration_api_keys.sql` (lub `npm run db:push`).
+
 ## Inteligentna kategoryzacja produktow
 
 System wykorzystuje embeddingi wektorowe (OpenAI + pgvector) do automatycznej klasyfikacji produktow:

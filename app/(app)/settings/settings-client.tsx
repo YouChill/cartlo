@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useState, useTransition } from 'react';
-import { Sun, Moon, Monitor, Mail } from 'lucide-react';
+import { Sun, Moon, Monitor, Mail, KeyRound } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useTheme } from '@/hooks/use-theme';
@@ -10,10 +10,18 @@ import {
   updateDisplayName,
   changePassword,
   sendInviteEmail,
+  generateApiKey,
+  revokeApiKey,
   type UpdateProfileState,
   type ChangePasswordState,
   type InviteEmailState,
 } from './actions';
+
+export type ApiKeyInfo = {
+  keyPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+};
 
 const profileInitial: UpdateProfileState = { error: null, success: false };
 const passwordInitial: ChangePasswordState = { error: null, success: false };
@@ -29,10 +37,12 @@ export function SettingsClient({
   displayName,
   email,
   inviteCode,
+  apiKeyInfo,
 }: {
   displayName: string;
   email: string;
   inviteCode: string;
+  apiKeyInfo: ApiKeyInfo | null;
 }) {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [isLoggingOut, startLogout] = useTransition();
@@ -274,6 +284,14 @@ export function SettingsClient({
         </div>
       </section>
 
+      {/* API key section */}
+      <section className="mb-8">
+        <h2 className="mb-3 text-lg font-bold text-text-primary">
+          Klucz API (Agent AI)
+        </h2>
+        <ApiKeyCard apiKeyInfo={apiKeyInfo} />
+      </section>
+
       {/* Theme section */}
       <section className="mb-8">
         <h2 className="mb-3 text-lg font-bold text-text-primary">Wygląd</h2>
@@ -337,6 +355,159 @@ export function SettingsClient({
           )}
         </div>
       </section>
+    </div>
+  );
+}
+
+function ApiKeyCard({ apiKeyInfo }: { apiKeyInfo: ApiKeyInfo | null }) {
+  const [isPending, startTransition] = useTransition();
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [showRevokeConfirm, setShowRevokeConfirm] = useState(false);
+
+  const handleGenerate = () => {
+    setError(null);
+    startTransition(async () => {
+      const result = await generateApiKey();
+      if (result.success && result.apiKey) {
+        setNewKey(result.apiKey);
+      } else {
+        setError(result.error ?? 'Wystąpił błąd');
+      }
+    });
+  };
+
+  const handleRevoke = () => {
+    setError(null);
+    setShowRevokeConfirm(false);
+    startTransition(async () => {
+      const result = await revokeApiKey();
+      if (result.success) {
+        setNewKey(null);
+      } else {
+        setError(result.error ?? 'Wystąpił błąd');
+      }
+    });
+  };
+
+  const handleCopy = async () => {
+    if (!newKey) return;
+    try {
+      await navigator.clipboard.writeText(newKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback silently
+    }
+  };
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString('pl-PL', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+  return (
+    <div className="rounded-2xl border border-border bg-surface p-4 shadow-sm">
+      <p className="mb-3 text-xs text-text-tertiary">
+        Klucz pozwala zewnętrznemu agentowi (np. asystentowi AI) czytać i
+        edytować listę zakupów Twojej rodziny przez API. Pozycje dodane przez
+        API są podpisane jako &bdquo;Agent&rdquo;.
+      </p>
+
+      {newKey ? (
+        <div className="mb-3 rounded-lg border border-warning-border bg-warning-bg p-3">
+          <p className="mb-2 text-xs font-semibold text-warning-text">
+            Skopiuj klucz teraz — nie pokażemy go ponownie!
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 truncate rounded bg-surface px-2 py-1.5 text-xs text-text-primary">
+              {newKey}
+            </code>
+            <Button
+              onClick={handleCopy}
+              variant="outline"
+              size="sm"
+              className="shrink-0 rounded-lg text-xs"
+            >
+              {copied ? 'Skopiowano!' : 'Kopiuj'}
+            </Button>
+          </div>
+        </div>
+      ) : apiKeyInfo ? (
+        <div className="mb-3 flex items-center gap-2 rounded-lg bg-surface-raised px-3 py-2">
+          <KeyRound size={16} className="shrink-0 text-text-tertiary" />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-text-primary">
+              {apiKeyInfo.keyPrefix}…
+            </p>
+            <p className="text-xs text-text-tertiary">
+              Utworzony {formatDate(apiKeyInfo.createdAt)}
+              {apiKeyInfo.lastUsedAt
+                ? ` · ostatnio użyty ${formatDate(apiKeyInfo.lastUsedAt)}`
+                : ' · nieużywany'}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {error && (
+        <div className="mb-3 rounded-lg bg-error-bg px-3 py-2 text-sm text-error-text">
+          {error}
+        </div>
+      )}
+
+      {showRevokeConfirm ? (
+        <div className="rounded-lg border border-warning-border bg-warning-bg p-3">
+          <p className="mb-2 text-sm text-warning-text">
+            Agent straci dostęp do listy. Kontynuować?
+          </p>
+          <div className="flex gap-2">
+            <Button
+              onClick={handleRevoke}
+              disabled={isPending}
+              size="sm"
+              className="rounded-lg bg-error-text text-xs text-white hover:bg-error-text/90"
+            >
+              Tak, unieważnij
+            </Button>
+            <Button
+              onClick={() => setShowRevokeConfirm(false)}
+              variant="ghost"
+              size="sm"
+              className="rounded-lg text-xs"
+            >
+              Anuluj
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2">
+          <Button
+            onClick={handleGenerate}
+            disabled={isPending}
+            className="h-11 flex-1 rounded-xl bg-mint-400 text-[15px] font-semibold text-white shadow-sm hover:bg-mint-500 active:bg-mint-600"
+          >
+            {isPending
+              ? 'Generowanie...'
+              : apiKeyInfo || newKey
+                ? 'Wygeneruj nowy klucz'
+                : 'Wygeneruj klucz'}
+          </Button>
+          {(apiKeyInfo || newKey) && (
+            <Button
+              onClick={() => setShowRevokeConfirm(true)}
+              disabled={isPending}
+              variant="outline"
+              className="h-11 rounded-xl border-border text-[15px] font-semibold text-error-text hover:bg-error-bg"
+            >
+              Unieważnij
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

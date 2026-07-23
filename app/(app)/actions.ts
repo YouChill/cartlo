@@ -1,17 +1,17 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq, and, or, isNull, ilike, desc, sql, inArray } from 'drizzle-orm';
+import { eq, and, or, isNull, ilike, desc, inArray } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { profiles, shoppingItems, products, categories } from '@/lib/db/schema';
 import { notifyListUpdate } from '@/lib/pusher/server';
+import { addShoppingItem, updateShoppingItem } from '@/lib/shopping/service';
 import {
   generateEmbedding,
   findSimilarProducts,
-  saveProductEmbedding,
-  upsertProductEmbedding,
   isEmbeddingConfigured,
+  upsertProductEmbedding,
 } from '@/lib/embeddings';
 
 export async function toggleShoppingItem(
@@ -33,17 +33,14 @@ export async function toggleShoppingItem(
     return { success: false, error: 'Nie należysz do rodziny' };
   }
 
-  await db
-    .update(shoppingItems)
-    .set({
-      isChecked,
-      checkedBy: isChecked ? userId : null,
-      checkedAt: isChecked ? new Date() : null,
-    })
-    .where(and(eq(shoppingItems.id, itemId), eq(shoppingItems.familyId, profile.familyId)));
+  await updateShoppingItem({
+    familyId: profile.familyId,
+    itemId,
+    patch: { isChecked },
+    actorProfileId: userId,
+  });
 
   revalidatePath('/');
-  if (profile?.familyId) notifyListUpdate(profile.familyId);
   return { success: true };
 }
 
@@ -189,119 +186,20 @@ export async function addProduct(
     return { success: false, error: 'Nie należysz do rodziny' };
   }
 
-  // Check for duplicates on active list
-  const existing = await db
-    .select({ id: shoppingItems.id })
-    .from(shoppingItems)
-    .where(
-      and(
-        eq(shoppingItems.familyId, profile.familyId),
-        eq(shoppingItems.isChecked, false),
-        ilike(shoppingItems.productName, trimmed),
-      ),
-    )
-    .limit(1);
+  const result = await addShoppingItem({
+    familyId: profile.familyId,
+    profileId: userId,
+    productName: trimmed,
+    quantity,
+    unit,
+    categoryId: knownCategoryId,
+  });
 
-  if (existing.length > 0) {
+  if (!result.ok) {
     return { success: false, error: 'Ten produkt już jest na liście' };
   }
 
-  // Determine category: use known category if provided, otherwise auto-detect
-  let categoryId: string | null = knownCategoryId ?? null;
-
-  if (knownCategoryId === undefined) {
-    // Look up product in products table for auto-categorization
-    const [knownProduct] = await db
-      .select({
-        id: products.id,
-        categoryId: products.categoryId,
-        usageCount: products.usageCount,
-      })
-      .from(products)
-      .where(
-        and(
-          ilike(products.name, trimmed),
-          or(
-            isNull(products.familyId),
-            eq(products.familyId, profile.familyId),
-          ),
-        ),
-      )
-      .limit(1);
-
-    if (knownProduct) {
-      categoryId = knownProduct.categoryId;
-      // Increment usage_count for better autocomplete sorting
-      await db
-        .update(products)
-        .set({ usageCount: knownProduct.usageCount + 1 })
-        .where(eq(products.id, knownProduct.id));
-    } else {
-      // Product not found by exact match — try semantic search via embeddings
-      let embeddingCategoryId: string | null = null;
-      let productEmbedding: number[] | null = null;
-
-      if (isEmbeddingConfigured()) {
-        try {
-          productEmbedding = await generateEmbedding(trimmed);
-          const similar = await findSimilarProducts(
-            productEmbedding,
-            profile.familyId,
-            { threshold: 0.8, limit: 1, requireCategory: true },
-          );
-
-          if (similar.length > 0 && similar[0].categoryId) {
-            embeddingCategoryId = similar[0].categoryId;
-          }
-        } catch (err) {
-          console.error('[addProduct] Embedding generation failed:', err);
-        }
-      }
-
-      categoryId = embeddingCategoryId;
-
-      // Add as new product (with embedding if available)
-      try {
-        const [newProduct] = await db
-          .insert(products)
-          .values({
-            name: trimmed,
-            categoryId,
-            familyId: profile.familyId,
-            usageCount: 1,
-          })
-          .onConflictDoUpdate({
-            target: [products.name, products.familyId],
-            set: { categoryId, usageCount: sql`${products.usageCount} + 1` },
-          })
-          .returning({ id: products.id });
-
-        // Save embedding for the new product (non-blocking)
-        if (isEmbeddingConfigured() && newProduct) {
-          if (productEmbedding) {
-            saveProductEmbedding(newProduct.id, productEmbedding).catch(() => {});
-          } else {
-            upsertProductEmbedding(newProduct.id, trimmed).catch(() => {});
-          }
-        }
-      } catch {
-        // Product upsert failed — continue with shopping item insertion
-      }
-    }
-  }
-
-  // Insert shopping item
-  await db.insert(shoppingItems).values({
-    familyId: profile.familyId,
-    productName: trimmed,
-    categoryId,
-    quantity: quantity.toString(),
-    unit,
-    addedBy: userId,
-  });
-
   revalidatePath('/');
-  notifyListUpdate(profile.familyId);
   return { success: true };
 }
 
@@ -329,7 +227,12 @@ export async function classifyProduct(
   await db
     .update(shoppingItems)
     .set({ categoryId })
-    .where(and(eq(shoppingItems.id, itemId), eq(shoppingItems.familyId, profile.familyId)));
+    .where(
+      and(
+        eq(shoppingItems.id, itemId),
+        eq(shoppingItems.familyId, profile.familyId),
+      ),
+    );
 
   // Upsert product — teach the system for future auto-categorization
   const [existingProduct] = await db
@@ -403,13 +306,18 @@ export async function updateQuantity(
     .where(eq(profiles.id, userId))
     .limit(1);
 
-  await db
-    .update(shoppingItems)
-    .set({ quantity: newQuantity.toString() })
-    .where(eq(shoppingItems.id, itemId));
+  if (!profile?.familyId) {
+    return { success: false, error: 'Nie należysz do rodziny' };
+  }
+
+  await updateShoppingItem({
+    familyId: profile.familyId,
+    itemId,
+    patch: { quantity: newQuantity },
+    actorProfileId: userId,
+  });
 
   revalidatePath('/');
-  if (profile?.familyId) notifyListUpdate(profile.familyId);
   return { success: true };
 }
 

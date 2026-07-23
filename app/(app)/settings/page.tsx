@@ -1,8 +1,14 @@
 import { redirect } from 'next/navigation';
-import { eq, or, asc } from 'drizzle-orm';
+import { eq, and, or, asc, isNull } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { profiles, users, families, categories } from '@/lib/db/schema';
+import {
+  profiles,
+  users,
+  families,
+  categories,
+  apiKeys,
+} from '@/lib/db/schema';
 import { SettingsClient } from './settings-client';
 import { ProductCategories } from '@/components/settings/product-categories';
 
@@ -39,6 +45,18 @@ export default async function SettingsPage() {
     .where(eq(families.id, profile.familyId))
     .limit(1);
 
+  const [activeApiKey] = await db
+    .select({
+      keyPrefix: apiKeys.keyPrefix,
+      createdAt: apiKeys.createdAt,
+      lastUsedAt: apiKeys.lastUsedAt,
+    })
+    .from(apiKeys)
+    .where(
+      and(eq(apiKeys.familyId, profile.familyId), isNull(apiKeys.revokedAt)),
+    )
+    .limit(1);
+
   const allCategories = await db
     .select({
       id: categories.id,
@@ -60,6 +78,15 @@ export default async function SettingsPage() {
         displayName={profile.displayName}
         email={user.email}
         inviteCode={family?.inviteCode ?? ''}
+        apiKeyInfo={
+          activeApiKey
+            ? {
+                keyPrefix: activeApiKey.keyPrefix,
+                createdAt: activeApiKey.createdAt.toISOString(),
+                lastUsedAt: activeApiKey.lastUsedAt?.toISOString() ?? null,
+              }
+            : null
+        }
       />
       <div className="mx-auto max-w-lg px-4 pb-6 -mt-2">
         <ProductCategories categories={allCategories} />
