@@ -9,7 +9,7 @@ Rodzinna lista zakupow jako PWA — wspoldzielona w czasie rzeczywistym, z intel
 - **Autouzupelnianie** — wyszukiwanie produktow z podpowiedziami, sortowane wg popularnosci, uzupelniane wyszukiwaniem semantycznym
 - **Szablony list** — zapisywanie i ponowne uzycie list zakupow z drag & drop, ilosciami i jednostkami
 - **Zarzadzanie rodzina** — kody zaproszen, zaproszenia email
-- **Resetowanie hasla** — link „Nie pamietasz hasla?” na ekranie logowania wysyla jednorazowy link (wazny 1h) na email
+- **Resetowanie hasla** — link „Nie pamietasz hasla?” na ekranie logowania wysyla jednorazowy link (wazny 1h) na email; po ustawieniu nowego hasla uzytkownik jest od razu zalogowany, a na jego adres trafia powiadomienie o zmianie hasla
 - **PWA** — instalowalna aplikacja z Service Workerem
 - **Tryb ciemny** — automatyczny i reczny
 
@@ -54,21 +54,24 @@ Aplikacja dostepna pod [http://localhost:3000](http://localhost:3000).
 
 ## Zmienne srodowiskowe
 
-| Zmienna                                                         | Opis                                 | Wymagana |
-| --------------------------------------------------------------- | ------------------------------------ | -------- |
-| `DATABASE_URL`                                                  | Connection string do Neon PostgreSQL | Tak      |
-| `AUTH_SECRET`                                                   | Secret dla NextAuth.js               | Tak      |
-| `PUSHER_APP_ID`                                                 | Pusher App ID                        | Tak      |
-| `NEXT_PUBLIC_PUSHER_KEY`                                        | Pusher Key (publiczny)               | Tak      |
-| `PUSHER_SECRET`                                                 | Pusher Secret                        | Tak      |
-| `NEXT_PUBLIC_PUSHER_CLUSTER`                                    | Pusher Cluster (np. `eu`)            | Tak      |
-| `OPENAI_API_KEY`                                                | Klucz API OpenAI dla embeddingów     | Nie\*    |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | SMTP dla zaproszen i resetu hasla    | Nie      |
-| `NEXT_PUBLIC_APP_URL`                                           | URL aplikacji (linki w emailach)     | Nie      |
+| Zmienna                                                         | Opis                                  | Wymagana |
+| --------------------------------------------------------------- | ------------------------------------- | -------- |
+| `DATABASE_URL`                                                  | Connection string do Neon PostgreSQL  | Tak      |
+| `AUTH_SECRET`                                                   | Secret dla NextAuth.js                | Tak      |
+| `PUSHER_APP_ID`                                                 | Pusher App ID                         | Tak      |
+| `NEXT_PUBLIC_PUSHER_KEY`                                        | Pusher Key (publiczny)                | Tak      |
+| `PUSHER_SECRET`                                                 | Pusher Secret                         | Tak      |
+| `NEXT_PUBLIC_PUSHER_CLUSTER`                                    | Pusher Cluster (np. `eu`)             | Tak      |
+| `OPENAI_API_KEY`                                                | Klucz API OpenAI dla embeddingów      | Nie\*    |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | SMTP dla zaproszen i resetu hasla     | Nie      |
+| `NEXT_PUBLIC_APP_URL`                                           | URL aplikacji (linki w emailach)      | Nie      |
+| `CRON_SECRET`                                                   | Autoryzacja Vercel Cron (`/api/cron`) | Nie      |
 
 \* Bez `OPENAI_API_KEY` aplikacja dziala normalnie, ale bez inteligentnej kategoryzacji i wyszukiwania semantycznego.
 
 Bez konfiguracji SMTP zaproszenia trzeba wysylac linkiem recznie, a resetowanie hasla jest niedostepne. Reset hasla wymaga migracji `drizzle/migration_password_reset.sql` (lub `npm run db:push`).
+
+Zuzyte i przeterminowane tokeny resetu sa usuwane raz dziennie przez Vercel Cron (`vercel.json` → `/api/cron/cleanup-password-reset-tokens`). Endpoint wymaga naglowka `Authorization: Bearer <CRON_SECRET>`; bez ustawionego `CRON_SECRET` odpowiada 503. Recznie: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://your-app.vercel.app/api/cron/cleanup-password-reset-tokens`.
 
 ## API dla agenta (/api/v1)
 

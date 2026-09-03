@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { passwordResetTokens, users } from '@/lib/db/schema';
 
@@ -59,6 +59,7 @@ export async function createPasswordResetToken(
 
 export type ValidResetToken = {
   userId: string;
+  email: string;
 };
 
 /**
@@ -76,6 +77,7 @@ export async function findValidResetToken(
   const [row] = await db
     .select({
       userId: passwordResetTokens.userId,
+      email: users.email,
       expiresAt: passwordResetTokens.expiresAt,
       usedAt: passwordResetTokens.usedAt,
       loginDisabled: users.loginDisabled,
@@ -90,7 +92,7 @@ export async function findValidResetToken(
   if (row.expiresAt.getTime() <= Date.now()) return null;
   if (row.loginDisabled) return null;
 
-  return { userId: row.userId };
+  return { userId: row.userId, email: row.email };
 }
 
 /**
@@ -117,4 +119,23 @@ export async function consumeResetToken(
         isNull(passwordResetTokens.usedAt),
       ),
     );
+}
+
+/**
+ * Delete tokens that can never be used again: expired ones and ones already
+ * consumed. Returns the number of removed rows. Safe to run at any time —
+ * the cooldown check only considers unused tokens younger than a minute.
+ */
+export async function purgeStaleResetTokens(): Promise<number> {
+  const deleted = await db
+    .delete(passwordResetTokens)
+    .where(
+      or(
+        lt(passwordResetTokens.expiresAt, new Date()),
+        isNotNull(passwordResetTokens.usedAt),
+      ),
+    )
+    .returning({ id: passwordResetTokens.id });
+
+  return deleted.length;
 }
