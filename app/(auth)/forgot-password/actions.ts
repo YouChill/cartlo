@@ -10,7 +10,11 @@ import {
   isEmailConfigured,
   sendEmail,
 } from '@/lib/email';
-import { createPasswordResetToken } from '@/lib/password-reset';
+import {
+  MISSING_RESET_TABLE_MESSAGE,
+  createPasswordResetToken,
+  isMissingResetTableError,
+} from '@/lib/password-reset';
 
 export type ForgotPasswordState = {
   error: string | null;
@@ -56,7 +60,18 @@ export async function requestPasswordReset(
     return { error: null, success: true };
   }
 
-  const token = await createPasswordResetToken(user.id);
+  let token: string | null;
+  try {
+    token = await createPasswordResetToken(user.id);
+  } catch (err) {
+    console.error('Password reset token error:', err);
+    return {
+      error: isMissingResetTableError(err)
+        ? MISSING_RESET_TABLE_MESSAGE
+        : 'Wystąpił błąd. Spróbuj ponownie za chwilę.',
+      success: false,
+    };
+  }
   if (!token) {
     // Cooldown — an email went out moments ago; don't spam the inbox.
     return { error: null, success: true };

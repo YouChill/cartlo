@@ -7,7 +7,12 @@ import { signIn } from '@/lib/auth';
 import { db } from '@/lib/db';
 import { profiles } from '@/lib/db/schema';
 import { sendPasswordChangedEmail } from '@/lib/email/password-changed';
-import { consumeResetToken, findValidResetToken } from '@/lib/password-reset';
+import {
+  MISSING_RESET_TABLE_MESSAGE,
+  consumeResetToken,
+  findValidResetToken,
+  isMissingResetTableError,
+} from '@/lib/password-reset';
 
 export type ResetPasswordState = {
   error: string | null;
@@ -36,16 +41,29 @@ export async function resetPassword(
     return { error: 'Hasła nie są identyczne.', invalidToken: false };
   }
 
-  const valid = await findValidResetToken(token);
+  let valid: Awaited<ReturnType<typeof findValidResetToken>>;
+  try {
+    valid = await findValidResetToken(token);
+    if (valid) {
+      const passwordHash = await bcrypt.hash(password, 12);
+      await consumeResetToken(valid, passwordHash);
+    }
+  } catch (err) {
+    console.error('Password reset error:', err);
+    return {
+      error: isMissingResetTableError(err)
+        ? MISSING_RESET_TABLE_MESSAGE
+        : 'Wystąpił błąd. Spróbuj ponownie za chwilę.',
+      invalidToken: false,
+    };
+  }
+
   if (!valid) {
     return {
       error: 'Ten link wygasł lub został już użyty. Poproś o nowy.',
       invalidToken: true,
     };
   }
-
-  const passwordHash = await bcrypt.hash(password, 12);
-  await consumeResetToken(valid, passwordHash);
 
   // Security notification — best effort, never blocks the flow.
   await sendPasswordChangedEmail(valid.email);
