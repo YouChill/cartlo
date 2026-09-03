@@ -4,25 +4,20 @@ import { db } from '@/lib/db';
 import { passwordResetTokens, users } from '@/lib/db/schema';
 
 /**
- * True when a database error means the password_reset_tokens table does not
- * exist yet (Postgres 42P01 undefined_table) — i.e. the migration was not run.
+ * True when a database error means the schema is behind the code — a table
+ * (42P01 undefined_table) or column (42703 undefined_column) the reset flow
+ * relies on does not exist yet, i.e. a migration in drizzle/ was not run.
  */
-export function isMissingResetTableError(err: unknown): boolean {
+export function isSchemaOutOfDateError(err: unknown): boolean {
   if (!err || typeof err !== 'object') return false;
-  const e = err as { code?: string; message?: string; cause?: unknown };
-  if (e.code === '42P01') return true;
-  if (
-    typeof e.message === 'string' &&
-    /password_reset_tokens.*does not exist/i.test(e.message)
-  ) {
-    return true;
-  }
-  return e.cause ? isMissingResetTableError(e.cause) : false;
+  const e = err as { code?: string; cause?: unknown };
+  if (e.code === '42P01' || e.code === '42703') return true;
+  return e.cause ? isSchemaOutOfDateError(e.cause) : false;
 }
 
-export const MISSING_RESET_TABLE_MESSAGE =
-  'Resetowanie hasła nie jest jeszcze skonfigurowane po stronie bazy danych. ' +
-  'Wykonaj migrację drizzle/migration_password_reset.sql.';
+export const SCHEMA_OUT_OF_DATE_MESSAGE =
+  'Baza danych nie ma jeszcze wymaganych zmian. Wykonaj zaległe migracje ' +
+  'z katalogu drizzle/ (login_disabled, password_reset) lub npm run db:push.';
 
 /** How long a reset link stays valid. */
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour

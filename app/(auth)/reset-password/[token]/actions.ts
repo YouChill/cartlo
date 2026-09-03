@@ -8,10 +8,10 @@ import { db } from '@/lib/db';
 import { profiles } from '@/lib/db/schema';
 import { sendPasswordChangedEmail } from '@/lib/email/password-changed';
 import {
-  MISSING_RESET_TABLE_MESSAGE,
+  SCHEMA_OUT_OF_DATE_MESSAGE,
   consumeResetToken,
   findValidResetToken,
-  isMissingResetTableError,
+  isSchemaOutOfDateError,
 } from '@/lib/password-reset';
 
 export type ResetPasswordState = {
@@ -51,8 +51,8 @@ export async function resetPassword(
   } catch (err) {
     console.error('Password reset error:', err);
     return {
-      error: isMissingResetTableError(err)
-        ? MISSING_RESET_TABLE_MESSAGE
+      error: isSchemaOutOfDateError(err)
+        ? SCHEMA_OUT_OF_DATE_MESSAGE
         : 'Wystąpił błąd. Spróbuj ponownie za chwilę.',
       invalidToken: false,
     };

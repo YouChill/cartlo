@@ -69,7 +69,7 @@ Aplikacja dostepna pod [http://localhost:3000](http://localhost:3000).
 
 \* Bez `OPENAI_API_KEY` aplikacja dziala normalnie, ale bez inteligentnej kategoryzacji i wyszukiwania semantycznego.
 
-Bez konfiguracji SMTP zaproszenia trzeba wysylac linkiem recznie, a resetowanie hasla jest niedostepne. Reset hasla wymaga migracji `drizzle/migration_password_reset.sql` (lub `npm run db:push`).
+Bez konfiguracji SMTP zaproszenia trzeba wysylac linkiem recznie, a resetowanie hasla jest niedostepne. Reset hasla wymaga migracji `drizzle/migration_password_reset.sql` oraz wczesniejszej `drizzle/migration_login_disabled.sql` (lub `npm run db:push`). Wszystkie pliki `drizzle/migration_*.sql` sa idempotentne — mozna je bezpiecznie wykonac ponownie.
 
 Zuzyte i przeterminowane tokeny resetu sa usuwane raz dziennie przez Vercel Cron (`vercel.json` → `/api/cron/cleanup-password-reset-tokens`). Endpoint wymaga naglowka `Authorization: Bearer <CRON_SECRET>`; bez ustawionego `CRON_SECRET` odpowiada 503. Recznie: `curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://your-app.vercel.app/api/cron/cleanup-password-reset-tokens`.
 

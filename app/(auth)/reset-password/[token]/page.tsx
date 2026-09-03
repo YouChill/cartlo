@@ -1,7 +1,7 @@
 import {
-  MISSING_RESET_TABLE_MESSAGE,
+  SCHEMA_OUT_OF_DATE_MESSAGE,
   findValidResetToken,
-  isMissingResetTableError,
+  isSchemaOutOfDateError,
 } from '@/lib/password-reset';
 import { InvalidResetLink, ResetPasswordForm } from './reset-password-form';
 
@@ -24,8 +24,8 @@ export default async function ResetPasswordPage({ params }: Props) {
     valid = await findValidResetToken(token);
   } catch (err) {
     console.error('Password reset lookup error:', err);
-    setupError = isMissingResetTableError(err)
-      ? MISSING_RESET_TABLE_MESSAGE
+    setupError = isSchemaOutOfDateError(err)
+      ? SCHEMA_OUT_OF_DATE_MESSAGE
       : 'Wystąpił błąd. Spróbuj ponownie za chwilę.';
   }
 
