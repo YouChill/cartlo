@@ -1,13 +1,20 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { login, register, type AuthFormState } from './actions';
 
 const initialState: AuthFormState = { error: null };
 
-export function LoginForm({ joinCode }: { joinCode?: string }) {
+export function LoginForm({
+  joinCode,
+  passwordReset = false,
+}: {
+  joinCode?: string;
+  passwordReset?: boolean;
+}) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [loginState, loginAction, loginPending] = useActionState(
     login,
@@ -25,6 +32,12 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
 
   return (
     <div className="rounded-2xl border border-border bg-surface p-6 shadow-md">
+      {passwordReset && isLogin && (
+        <div className="mb-4 rounded-lg bg-mint-50 px-3 py-2 text-center text-sm text-mint-600">
+          Hasło zostało zmienione. Zaloguj się nowym hasłem.
+        </div>
+      )}
+
       {hasJoinCode && (
         <div className="mb-4 rounded-lg bg-mint-50 px-3 py-2 text-center text-sm text-mint-600">
           {isLogin
@@ -57,12 +70,22 @@ export function LoginForm({ joinCode }: { joinCode?: string }) {
           </div>
 
           <div>
-            <label
-              htmlFor="password"
-              className="mb-1.5 block text-sm font-semibold text-text-primary"
-            >
-              Hasło
-            </label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label
+                htmlFor="password"
+                className="block text-sm font-semibold text-text-primary"
+              >
+                Hasło
+              </label>
+              {isLogin && (
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-semibold text-mint-500 hover:text-mint-600"
+                >
+                  Nie pamiętasz hasła?
+                </Link>
+              )}
+            </div>
             <Input
               id="password"
               name="password"

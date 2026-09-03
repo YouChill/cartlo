@@ -52,6 +52,25 @@ export const users = pgTable('users', {
     .defaultNow(),
 });
 
+// One-time, single-use tokens for the "forgot password" flow. Only a SHA-256
+// hash of the token is stored — the raw token exists solely in the email link.
+export const passwordResetTokens = pgTable(
+  'password_reset_tokens',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('idx_password_reset_tokens_user_id').on(table.userId)],
+);
+
 export const families = pgTable('families', {
   id: uuid('id').primaryKey().defaultRandom(),
   name: text('name').notNull(),

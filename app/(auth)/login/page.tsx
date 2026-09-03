@@ -5,11 +5,11 @@ export const metadata = {
 };
 
 type Props = {
-  searchParams: Promise<{ join?: string }>;
+  searchParams: Promise<{ join?: string; reset?: string }>;
 };
 
 export default async function LoginPage({ searchParams }: Props) {
-  const { join } = await searchParams;
+  const { join, reset } = await searchParams;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--background)] px-4">
@@ -38,7 +38,7 @@ export default async function LoginPage({ searchParams }: Props) {
             Rodzinna lista zakupow
           </p>
         </div>
-        <LoginForm joinCode={join} />
+        <LoginForm joinCode={join} passwordReset={reset === '1'} />
       </div>
     </div>
   );

@@ -21,16 +21,12 @@ import {
 } from '@/lib/db/schema';
 import { isCategoryVisibleToFamily } from '@/lib/db/scope';
 import { generateApiKeyString, hashApiKey } from '@/lib/api/auth';
-
-/** Escape a string for safe interpolation into HTML (email templates). */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+import {
+  escapeHtml,
+  getAppBaseUrl,
+  isEmailConfigured,
+  sendEmail,
+} from '@/lib/email';
 
 // ---------------------------------------------------------------------------
 // Sign out
@@ -173,9 +169,7 @@ export async function sendInviteEmail(
     return { error: 'Nie znaleziono rodziny.', success: false };
   }
 
-  const smtpUser = process.env.SMTP_USER;
-  const smtpPass = process.env.SMTP_PASS;
-  if (!smtpUser || !smtpPass) {
+  if (!isEmailConfigured()) {
     return {
       error:
         'Wysyłanie emaili nie jest skonfigurowane. Użyj linku zaproszenia.',
@@ -183,36 +177,17 @@ export async function sendInviteEmail(
     };
   }
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL ??
-    (process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : 'http://localhost:3000');
+  const baseUrl = getAppBaseUrl();
   const inviteLink = `${baseUrl}/join/${family.inviteCode}`;
 
   try {
-    const smtpPort = Number(process.env.SMTP_PORT ?? '587');
-    const nodemailer = await import('nodemailer');
-    const transporter = nodemailer.default.createTransport({
-      host: process.env.SMTP_HOST ?? 'smtp.gmail.com',
-      port: smtpPort,
-      // Implicit TLS on 465; STARTTLS (upgraded) on 587/others.
-      secure: smtpPort === 465,
-      requireTLS: smtpPort !== 465,
-      auth: {
-        user: smtpUser,
-        pass: smtpPass,
-      },
-    });
-
     // Escape all user-controlled values before interpolating into HTML —
     // displayName and family name are user-set and would otherwise allow
     // HTML/markup injection into the outbound email.
     const safeDisplayName = escapeHtml(profile.displayName);
     const safeFamilyName = escapeHtml(family.name);
 
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM ?? `Cartlo <${smtpUser}>`,
+    await sendEmail({
       to: email,
       subject: `${profile.displayName} zaprasza Cię do rodziny "${family.name}" w Cartlo`,
       text:

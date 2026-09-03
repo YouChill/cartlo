@@ -9,6 +9,7 @@ Rodzinna lista zakupow jako PWA — wspoldzielona w czasie rzeczywistym, z intel
 - **Autouzupelnianie** — wyszukiwanie produktow z podpowiedziami, sortowane wg popularnosci, uzupelniane wyszukiwaniem semantycznym
 - **Szablony list** — zapisywanie i ponowne uzycie list zakupow z drag & drop, ilosciami i jednostkami
 - **Zarzadzanie rodzina** — kody zaproszen, zaproszenia email
+- **Resetowanie hasla** — link „Nie pamietasz hasla?” na ekranie logowania wysyla jednorazowy link (wazny 1h) na email
 - **PWA** — instalowalna aplikacja z Service Workerem
 - **Tryb ciemny** — automatyczny i reczny
 
@@ -53,19 +54,21 @@ Aplikacja dostepna pod [http://localhost:3000](http://localhost:3000).
 
 ## Zmienne srodowiskowe
 
-| Zmienna                                                         | Opis                                  | Wymagana |
-| --------------------------------------------------------------- | ------------------------------------- | -------- |
-| `DATABASE_URL`                                                  | Connection string do Neon PostgreSQL  | Tak      |
-| `AUTH_SECRET`                                                   | Secret dla NextAuth.js                | Tak      |
-| `PUSHER_APP_ID`                                                 | Pusher App ID                         | Tak      |
-| `NEXT_PUBLIC_PUSHER_KEY`                                        | Pusher Key (publiczny)                | Tak      |
-| `PUSHER_SECRET`                                                 | Pusher Secret                         | Tak      |
-| `NEXT_PUBLIC_PUSHER_CLUSTER`                                    | Pusher Cluster (np. `eu`)             | Tak      |
-| `OPENAI_API_KEY`                                                | Klucz API OpenAI dla embeddingów      | Nie\*    |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | Konfiguracja SMTP dla zaproszen email | Nie      |
-| `NEXT_PUBLIC_APP_URL`                                           | URL aplikacji                         | Nie      |
+| Zmienna                                                         | Opis                                 | Wymagana |
+| --------------------------------------------------------------- | ------------------------------------ | -------- |
+| `DATABASE_URL`                                                  | Connection string do Neon PostgreSQL | Tak      |
+| `AUTH_SECRET`                                                   | Secret dla NextAuth.js               | Tak      |
+| `PUSHER_APP_ID`                                                 | Pusher App ID                        | Tak      |
+| `NEXT_PUBLIC_PUSHER_KEY`                                        | Pusher Key (publiczny)               | Tak      |
+| `PUSHER_SECRET`                                                 | Pusher Secret                        | Tak      |
+| `NEXT_PUBLIC_PUSHER_CLUSTER`                                    | Pusher Cluster (np. `eu`)            | Tak      |
+| `OPENAI_API_KEY`                                                | Klucz API OpenAI dla embeddingów     | Nie\*    |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | SMTP dla zaproszen i resetu hasla    | Nie      |
+| `NEXT_PUBLIC_APP_URL`                                           | URL aplikacji (linki w emailach)     | Nie      |
 
 \* Bez `OPENAI_API_KEY` aplikacja dziala normalnie, ale bez inteligentnej kategoryzacji i wyszukiwania semantycznego.
+
+Bez konfiguracji SMTP zaproszenia trzeba wysylac linkiem recznie, a resetowanie hasla jest niedostepne. Reset hasla wymaga migracji `drizzle/migration_password_reset.sql` (lub `npm run db:push`).
 
 ## API dla agenta (/api/v1)
 

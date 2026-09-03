@@ -6,6 +6,8 @@ import { NextResponse } from 'next/server';
 // return 401 JSON instead of redirecting to /login
 const PUBLIC_ROUTES = [
   '/login',
+  '/forgot-password',
+  '/reset-password',
   '/join',
   '/api/auth',
   '/api/seed',
