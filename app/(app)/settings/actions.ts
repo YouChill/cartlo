@@ -27,6 +27,7 @@ import {
   isEmailConfigured,
   sendEmail,
 } from '@/lib/email';
+import { sendPasswordChangedEmail } from '@/lib/email/password-changed';
 
 // ---------------------------------------------------------------------------
 // Sign out
@@ -101,7 +102,7 @@ export async function changePassword(
   if (!userId) redirect('/login');
 
   const [user] = await db
-    .select({ passwordHash: users.passwordHash })
+    .select({ email: users.email, passwordHash: users.passwordHash })
     .from(users)
     .where(eq(users.id, userId))
     .limit(1);
@@ -118,6 +119,9 @@ export async function changePassword(
     .update(users)
     .set({ passwordHash: newHash })
     .where(eq(users.id, userId));
+
+  // Security notification — best effort, never blocks the change.
+  await sendPasswordChangedEmail(user.email);
 
   return { error: null, success: true };
 }

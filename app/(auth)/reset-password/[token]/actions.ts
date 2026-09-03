@@ -2,7 +2,17 @@
 
 import { redirect } from 'next/navigation';
 import bcrypt from 'bcryptjs';
-import { consumeResetToken, findValidResetToken } from '@/lib/password-reset';
+import { eq } from 'drizzle-orm';
+import { signIn } from '@/lib/auth';
+import { db } from '@/lib/db';
+import { profiles } from '@/lib/db/schema';
+import { sendPasswordChangedEmail } from '@/lib/email/password-changed';
+import {
+  SCHEMA_OUT_OF_DATE_MESSAGE,
+  consumeResetToken,
+  findValidResetToken,
+  isSchemaOutOfDateError,
+} from '@/lib/password-reset';
 
 export type ResetPasswordState = {
   error: string | null;
@@ -31,7 +41,23 @@ export async function resetPassword(
     return { error: 'Hasła nie są identyczne.', invalidToken: false };
   }
 
-  const valid = await findValidResetToken(token);
+  let valid: Awaited<ReturnType<typeof findValidResetToken>>;
+  try {
+    valid = await findValidResetToken(token);
+    if (valid) {
+      const passwordHash = await bcrypt.hash(password, 12);
+      await consumeResetToken(valid, passwordHash);
+    }
+  } catch (err) {
+    console.error('Password reset error:', err);
+    return {
+      error: isSchemaOutOfDateError(err)
+        ? SCHEMA_OUT_OF_DATE_MESSAGE
+        : 'Wystąpił błąd. Spróbuj ponownie za chwilę.',
+      invalidToken: false,
+    };
+  }
+
   if (!valid) {
     return {
       error: 'Ten link wygasł lub został już użyty. Poproś o nowy.',
@@ -39,8 +65,32 @@ export async function resetPassword(
     };
   }
 
-  const passwordHash = await bcrypt.hash(password, 12);
-  await consumeResetToken(valid, passwordHash);
+  // Security notification — best effort, never blocks the flow.
+  await sendPasswordChangedEmail(valid.email);
 
-  redirect('/login?reset=1');
+  // Sign the user in straight away so they land in the app, not on the login
+  // form. If that fails for any reason, fall back to logging in manually.
+  let signedIn = false;
+  try {
+    await signIn('credentials', {
+      email: valid.email,
+      password,
+      redirect: false,
+    });
+    signedIn = true;
+  } catch (err) {
+    console.error('Auto sign-in after password reset failed:', err);
+  }
+
+  if (!signedIn) {
+    redirect('/login?reset=1');
+  }
+
+  const [profile] = await db
+    .select({ familyId: profiles.familyId })
+    .from(profiles)
+    .where(eq(profiles.id, valid.userId))
+    .limit(1);
+
+  redirect(profile?.familyId ? '/' : '/onboarding');
 }

@@ -1,7 +1,23 @@
 import { createHash, randomBytes } from 'crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lt, or } from 'drizzle-orm';
 import { db } from '@/lib/db';
 import { passwordResetTokens, users } from '@/lib/db/schema';
+
+/**
+ * True when a database error means the schema is behind the code — a table
+ * (42P01 undefined_table) or column (42703 undefined_column) the reset flow
+ * relies on does not exist yet, i.e. a migration in drizzle/ was not run.
+ */
+export function isSchemaOutOfDateError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { code?: string; cause?: unknown };
+  if (e.code === '42P01' || e.code === '42703') return true;
+  return e.cause ? isSchemaOutOfDateError(e.cause) : false;
+}
+
+export const SCHEMA_OUT_OF_DATE_MESSAGE =
+  'Baza danych nie ma jeszcze wymaganych zmian. Wykonaj zaległe migracje ' +
+  'z katalogu drizzle/ (login_disabled, password_reset) lub npm run db:push.';
 
 /** How long a reset link stays valid. */
 export const PASSWORD_RESET_TTL_MS = 60 * 60 * 1000; // 1 hour
@@ -59,6 +75,7 @@ export async function createPasswordResetToken(
 
 export type ValidResetToken = {
   userId: string;
+  email: string;
 };
 
 /**
@@ -76,6 +93,7 @@ export async function findValidResetToken(
   const [row] = await db
     .select({
       userId: passwordResetTokens.userId,
+      email: users.email,
       expiresAt: passwordResetTokens.expiresAt,
       usedAt: passwordResetTokens.usedAt,
       loginDisabled: users.loginDisabled,
@@ -90,7 +108,7 @@ export async function findValidResetToken(
   if (row.expiresAt.getTime() <= Date.now()) return null;
   if (row.loginDisabled) return null;
 
-  return { userId: row.userId };
+  return { userId: row.userId, email: row.email };
 }
 
 /**
@@ -117,4 +135,23 @@ export async function consumeResetToken(
         isNull(passwordResetTokens.usedAt),
       ),
     );
+}
+
+/**
+ * Delete tokens that can never be used again: expired ones and ones already
+ * consumed. Returns the number of removed rows. Safe to run at any time —
+ * the cooldown check only considers unused tokens younger than a minute.
+ */
+export async function purgeStaleResetTokens(): Promise<number> {
+  const deleted = await db
+    .delete(passwordResetTokens)
+    .where(
+      or(
+        lt(passwordResetTokens.expiresAt, new Date()),
+        isNotNull(passwordResetTokens.usedAt),
+      ),
+    )
+    .returning({ id: passwordResetTokens.id });
+
+  return deleted.length;
 }

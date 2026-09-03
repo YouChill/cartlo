@@ -10,7 +10,11 @@ import {
   isEmailConfigured,
   sendEmail,
 } from '@/lib/email';
-import { createPasswordResetToken } from '@/lib/password-reset';
+import {
+  SCHEMA_OUT_OF_DATE_MESSAGE,
+  createPasswordResetToken,
+  isSchemaOutOfDateError,
+} from '@/lib/password-reset';
 
 export type ForgotPasswordState = {
   error: string | null;
@@ -46,17 +50,28 @@ export async function requestPasswordReset(
     return { error: null, success: true };
   }
 
-  const [user] = await db
-    .select({ id: users.id, loginDisabled: users.loginDisabled })
-    .from(users)
-    .where(eq(users.email, email))
-    .limit(1);
+  let token: string | null;
+  try {
+    const [user] = await db
+      .select({ id: users.id, loginDisabled: users.loginDisabled })
+      .from(users)
+      .where(eq(users.email, email))
+      .limit(1);
 
-  if (!user || user.loginDisabled) {
-    return { error: null, success: true };
+    if (!user || user.loginDisabled) {
+      return { error: null, success: true };
+    }
+
+    token = await createPasswordResetToken(user.id);
+  } catch (err) {
+    console.error('Password reset token error:', err);
+    return {
+      error: isSchemaOutOfDateError(err)
+        ? SCHEMA_OUT_OF_DATE_MESSAGE
+        : 'Wystąpił błąd. Spróbuj ponownie za chwilę.',
+      success: false,
+    };
   }
-
-  const token = await createPasswordResetToken(user.id);
   if (!token) {
     // Cooldown — an email went out moments ago; don't spam the inbox.
     return { error: null, success: true };
