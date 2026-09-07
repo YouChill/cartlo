@@ -1,16 +1,14 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq, and, or, isNull, ilike, desc, inArray } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { getCurrentUserId } from '@/lib/auth';
 import { db } from '@/lib/db';
-import { profiles, shoppingItems, products, categories } from '@/lib/db/schema';
+import { profiles, shoppingItems, products } from '@/lib/db/schema';
 import { isCategoryVisibleToFamily } from '@/lib/db/scope';
 import { notifyListUpdate } from '@/lib/pusher/server';
 import { addShoppingItem, updateShoppingItem } from '@/lib/shopping/service';
 import {
-  generateEmbedding,
-  findSimilarProducts,
   isEmbeddingConfigured,
   upsertProductEmbedding,
 } from '@/lib/embeddings';
@@ -45,121 +43,10 @@ export async function toggleShoppingItem(
   return { success: true };
 }
 
-export type ProductSuggestion = {
-  id: string;
-  name: string;
-  category_id: string | null;
-  category_name: string | null;
-  category_icon: string | null;
-};
-
-export async function searchProducts(
-  query: string,
-): Promise<ProductSuggestion[]> {
-  const trimmed = query.trim();
-  if (!trimmed) return [];
-
-  const userId = await getCurrentUserId();
-  if (!userId) return [];
-
-  const [profile] = await db
-    .select({ familyId: profiles.familyId })
-    .from(profiles)
-    .where(eq(profiles.id, userId))
-    .limit(1);
-
-  if (!profile?.familyId) return [];
-
-  // Search products by name (case-insensitive)
-  const matchedProducts = await db
-    .select({
-      id: products.id,
-      name: products.name,
-      categoryId: products.categoryId,
-      usageCount: products.usageCount,
-    })
-    .from(products)
-    .where(
-      and(
-        ilike(products.name, `%${trimmed}%`),
-        or(isNull(products.familyId), eq(products.familyId, profile.familyId)),
-      ),
-    )
-    .orderBy(desc(products.usageCount))
-    .limit(8);
-
-  // If ILIKE returned fewer than 3 results, supplement with semantic search
-  let semanticProducts: typeof matchedProducts = [];
-  if (matchedProducts.length < 3 && isEmbeddingConfigured()) {
-    try {
-      const queryEmbedding = await generateEmbedding(trimmed);
-      const similar = await findSimilarProducts(
-        queryEmbedding,
-        profile.familyId,
-        { threshold: 0.7, limit: 8 - matchedProducts.length },
-      );
-
-      if (similar.length > 0) {
-        // Filter out products already found by ILIKE
-        const existingIds = new Set(matchedProducts.map((p) => p.id));
-        const newSimilar = similar.filter((s) => !existingIds.has(s.id));
-
-        if (newSimilar.length > 0) {
-          // Fetch full product info for semantic results
-          const semanticIds = newSimilar.map((s) => s.id);
-          semanticProducts = await db
-            .select({
-              id: products.id,
-              name: products.name,
-              categoryId: products.categoryId,
-              usageCount: products.usageCount,
-            })
-            .from(products)
-            .where(inArray(products.id, semanticIds));
-        }
-      }
-    } catch (err) {
-      console.error('[searchProducts] Semantic search failed:', err);
-    }
-  }
-
-  const allProducts = [...matchedProducts, ...semanticProducts];
-
-  if (allProducts.length === 0) return [];
-
-  // Fetch category names for matched products
-  const categoryIds = [
-    ...new Set(allProducts.map((p) => p.categoryId).filter(Boolean)),
-  ] as string[];
-
-  const categoryMap: Record<string, { name: string; icon: string }> = {};
-  if (categoryIds.length > 0) {
-    const cats = await db
-      .select({
-        id: categories.id,
-        name: categories.name,
-        icon: categories.icon,
-      })
-      .from(categories)
-      .where(inArray(categories.id, categoryIds));
-
-    cats.forEach((c) => {
-      categoryMap[c.id] = { name: c.name, icon: c.icon };
-    });
-  }
-
-  return allProducts.map((p) => ({
-    id: p.id,
-    name: p.name,
-    category_id: p.categoryId,
-    category_name: p.categoryId
-      ? (categoryMap[p.categoryId]?.name ?? null)
-      : null,
-    category_icon: p.categoryId
-      ? (categoryMap[p.categoryId]?.icon ?? null)
-      : null,
-  }));
-}
+// The suggestion shape lives with the search implementation now; the
+// autocomplete itself is served by GET /api/products/search (a route handler
+// is parallel and abortable, unlike a per-keystroke server action).
+export type { ProductSuggestion } from '@/lib/shopping/product-search';
 
 export async function addProduct(
   productName: string,

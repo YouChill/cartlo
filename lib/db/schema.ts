@@ -126,6 +126,13 @@ export const products = pgTable(
     uniqueIndex('products_global_name_uq')
       .on(sql`lower(${table.name})`)
       .where(sql`${table.familyId} IS NULL`),
+    // Autocomplete matches with `name ILIKE '%…%'`, which no B-tree index can
+    // serve. Requires the pg_trgm extension — created in
+    // drizzle/migration_products_search_idx.sql.
+    index('products_name_trgm_idx').using(
+      'gin',
+      sql`${table.name} gin_trgm_ops`,
+    ),
   ],
 );
 
