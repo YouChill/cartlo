@@ -1,12 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
-import { Minus, Plus, Search } from 'lucide-react';
-import {
-  addProduct,
-  searchProducts,
-  type ProductSuggestion,
-} from '@/app/(app)/actions';
+import { useEffect, useRef, useState, useTransition } from 'react';
+import { Loader2, Minus, Plus, Search } from 'lucide-react';
+import { addProduct } from '@/app/(app)/actions';
+import { useProductSuggestions } from '@/hooks/use-product-suggestions';
 import { getCategoryIcon } from '@/lib/category-icons';
 
 const AVAILABLE_UNITS = ['szt', 'g', 'kg', 'ml', 'l'] as const;
@@ -16,44 +13,13 @@ export function AddProductInput() {
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
+  const { suggestions, isLoading, search, reset } = useProductSuggestions();
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [quantity, setQuantity] = useState(1);
   const [unit, setUnit] = useState<Unit>('szt');
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  // Debounced search
-  const searchDebounced = useCallback((query: string) => {
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-    }
-
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      setSelectedIndex(-1);
-      return;
-    }
-
-    debounceRef.current = setTimeout(async () => {
-      const results = await searchProducts(trimmed);
-      setSuggestions(results);
-      setShowDropdown(true);
-      setSelectedIndex(-1);
-    }, 200);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-      }
-    };
-  }, []);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -79,7 +45,7 @@ export function AddProductInput() {
 
     setError(null);
     setShowDropdown(false);
-    setSuggestions([]);
+    reset();
     startTransition(async () => {
       const result = await addProduct(trimmed, categoryId, quantity, unit);
       if (result.success) {
@@ -164,7 +130,11 @@ export function AddProductInput() {
     const newValue = e.target.value;
     setValue(newValue);
     if (error) setError(null);
-    searchDebounced(newValue);
+    search(newValue);
+    // Open as soon as there is something to type-ahead on: the dropdown shows
+    // the "add as new" row immediately and fills in suggestions as they land.
+    setShowDropdown(newValue.trim().length > 0);
+    setSelectedIndex(-1);
   };
 
   return (
@@ -186,9 +156,7 @@ export function AddProductInput() {
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onFocus={() => {
-              if (value.trim() && suggestions.length > 0) {
-                setShowDropdown(true);
-              }
+              if (value.trim()) setShowDropdown(true);
             }}
             placeholder="Dodaj produkt..."
             disabled={isPending}
@@ -273,6 +241,13 @@ export function AddProductInput() {
           className="absolute left-4 right-4 z-30 mt-1 max-h-[360px] origin-top animate-slide-down overflow-y-auto overflow-x-hidden rounded-2xl border border-border bg-surface shadow-lg"
           role="listbox"
         >
+          {isLoading && suggestions.length === 0 && (
+            <div className="flex items-center gap-2 px-4 py-3 text-sm text-text-tertiary">
+              <Loader2 size={14} className="animate-spin" />
+              Szukam produktów...
+            </div>
+          )}
+
           {suggestions.map((suggestion, index) => {
             const Icon = suggestion.category_icon
               ? getCategoryIcon(suggestion.category_icon)

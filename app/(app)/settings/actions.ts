@@ -399,11 +399,12 @@ export async function searchProductsForSettings(
 
     if (!profile?.familyId) return [];
 
-    const matchedProducts = await db
+    const rows = await db
       .select({
         id: products.id,
         name: products.name,
         categoryId: products.categoryId,
+        familyId: products.familyId,
       })
       .from(products)
       .where(
@@ -416,7 +417,20 @@ export async function searchProductsForSettings(
         ),
       )
       .orderBy(desc(products.usageCount))
-      .limit(20);
+      .limit(40);
+
+    // Re-categorizing a global product creates a family-scoped override with
+    // the same name, so the raw query returns both rows. Keep one per name —
+    // the family row, which is the one that actually applies here.
+    const byName = new Map<string, (typeof rows)[number]>();
+    for (const row of rows) {
+      const key = row.name.toLowerCase();
+      const kept = byName.get(key);
+      if (!kept || (kept.familyId === null && row.familyId !== null)) {
+        byName.set(key, row);
+      }
+    }
+    const matchedProducts = [...byName.values()].slice(0, 20);
 
     if (matchedProducts.length === 0) return [];
 

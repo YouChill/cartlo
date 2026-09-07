@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, useCallback, useRef, useEffect } from 'react';
+import { useState, useTransition, useRef, useEffect } from 'react';
 import {
   Plus,
   LayoutTemplate,
@@ -16,6 +16,7 @@ import {
   GripVertical,
   Minus,
   Upload,
+  Loader2,
 } from 'lucide-react';
 import {
   DndContext,
@@ -62,7 +63,7 @@ import {
   reorderTemplateItems,
   importTemplate,
 } from '@/app/(app)/templates/actions';
-import { searchProducts, type ProductSuggestion } from '@/app/(app)/actions';
+import { useProductSuggestions } from '@/hooks/use-product-suggestions';
 import { getCategoryIcon } from '@/lib/category-icons';
 
 // ---------------------------------------------------------------------------
@@ -1099,35 +1100,11 @@ function AddTemplateItemInput({
 }) {
   const [value, setValue] = useState('');
   const [isPending, startTransition] = useTransition();
-  const [suggestions, setSuggestions] = useState<ProductSuggestion[]>([]);
+  const { suggestions, isLoading, search, reset } = useProductSuggestions();
   const [showDropdown, setShowDropdown] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
-
-  const searchDebounced = useCallback((query: string) => {
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    const trimmed = query.trim();
-    if (!trimmed) {
-      setSuggestions([]);
-      setShowDropdown(false);
-      setSelectedIndex(-1);
-      return;
-    }
-    debounceRef.current = setTimeout(async () => {
-      const results = await searchProducts(trimmed);
-      setSuggestions(results);
-      setShowDropdown(true);
-      setSelectedIndex(-1);
-    }, 200);
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -1155,7 +1132,7 @@ function AddTemplateItemInput({
     const trimmed = name.trim();
     if (!trimmed) return;
     setShowDropdown(false);
-    setSuggestions([]);
+    reset();
     startTransition(async () => {
       const result = await addTemplateItem(templateId, trimmed, categoryId);
       if (result.success && result.id) {
@@ -1225,12 +1202,15 @@ function AddTemplateItemInput({
           type="text"
           value={value}
           onChange={(e) => {
-            setValue(e.target.value);
-            searchDebounced(e.target.value);
+            const newValue = e.target.value;
+            setValue(newValue);
+            search(newValue);
+            setShowDropdown(newValue.trim().length > 0);
+            setSelectedIndex(-1);
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            if (value.trim() && suggestions.length > 0) setShowDropdown(true);
+            if (value.trim()) setShowDropdown(true);
           }}
           placeholder="Dodaj produkt do szablonu..."
           disabled={isPending}
@@ -1254,6 +1234,13 @@ function AddTemplateItemInput({
           className="absolute left-3 right-3 z-30 mt-1 max-h-[240px] origin-top animate-slide-down overflow-y-auto overflow-x-hidden rounded-xl border border-border bg-surface shadow-lg"
           role="listbox"
         >
+          {isLoading && suggestions.length === 0 && (
+            <div className="flex items-center gap-2 px-3 py-2.5 text-xs text-text-tertiary">
+              <Loader2 size={12} className="animate-spin" />
+              Szukam produktów...
+            </div>
+          )}
+
           {suggestions.map((s, index) => {
             const SuggIcon = s.category_icon
               ? getCategoryIcon(s.category_icon)
